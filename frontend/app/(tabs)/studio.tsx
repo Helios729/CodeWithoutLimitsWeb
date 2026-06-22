@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import { useLocalSearchParams } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -24,11 +25,20 @@ type Agent = { name: string; system: string };
 
 export default function Studio() {
   const { refreshUsage, usage } = useAuth();
+  const params = useLocalSearchParams<{ template?: string }>();
   const [agents, setAgents] = useState<Agent[]>([]);
   const [agent, setAgent] = useState("OER AI Tutor Agent");
   const [message, setMessage] = useState(
     "Explain what 'tokens' mean in a large language model in 3 short bullet points.",
   );
+
+  // If a learner taps "Try this template in Studio" on a sub-module, the
+  // framework's template arrives here as a query param. Prefill once.
+  useEffect(() => {
+    if (params.template && typeof params.template === "string") {
+      setMessage(params.template);
+    }
+  }, [params.template]);
   const [reply, setReply] = useState("");
   const [tokens, setTokens] = useState<number | null>(null);
   const [error, setError] = useState("");

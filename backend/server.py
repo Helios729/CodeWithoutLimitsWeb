@@ -35,6 +35,13 @@ from starlette.middleware.cors import CORSMiddleware
 
 from emergentintegrations.llm.chat import LlmChat, UserMessage
 
+from curriculum import (
+    MODULES,
+    PROMPT_FRAMEWORKS,
+    attach_citations,
+    find_module,
+    find_submodule,
+)
 from quota import (
     DAY_PASS_PROMPT_CAP,
     DAY_PASS_TOKEN_CAP,
@@ -583,6 +590,70 @@ async def quiz_history(user=Depends(get_current_user)):
         {"_id": 0, "questions": 0, "answers": 0},
     ).sort("submitted_at", -1).to_list(50)
     return {"quizzes": rows}
+
+
+# ---------- routes: curriculum (modules + sub-modules + frameworks) ----------
+@api.get("/modules")
+async def list_modules():
+    """Lightweight catalog for the Home grid + modules list. Heavy fields
+    (lesson body, build activities, framework templates) are returned only
+    by the detail endpoints to keep the list cheap on slow networks."""
+    return {
+        "modules": [
+            {
+                "module_id": m["module_id"],
+                "title": m["title"],
+                "persona": m["persona"],
+                "tagline": m["tagline"],
+                "color": m["color"],
+                "submodule_count": len(m["submodules"]),
+            }
+            for m in MODULES
+        ],
+        "framework_count": len(PROMPT_FRAMEWORKS),
+    }
+
+
+@api.get("/modules/frameworks")
+async def list_frameworks():
+    """Prompting frameworks (RTF, CO-STAR, ERA, RISE, CREATE, RSTI) the
+    Studio uses to power its 'Insert template' picker."""
+    return {"frameworks": PROMPT_FRAMEWORKS}
+
+
+@api.get("/modules/{module_id}")
+async def module_detail(module_id: str):
+    m = find_module(module_id)
+    if not m:
+        raise HTTPException(404, "Unknown module")
+    return {
+        "module_id": m["module_id"],
+        "title": m["title"],
+        "persona": m["persona"],
+        "tagline": m["tagline"],
+        "color": m["color"],
+        "submodules": [
+            {
+                "id": s["id"],
+                "title": s["title"],
+                "objective": s["objective"],
+                "has_build_activity": "build_activity" in s,
+                "has_framework": "framework" in s,
+            }
+            for s in m["submodules"]
+        ],
+    }
+
+
+@api.get("/modules/{module_id}/{sub_id}")
+async def submodule_detail(module_id: str, sub_id: str):
+    m, s = find_submodule(module_id, sub_id)
+    if not m or not s:
+        raise HTTPException(404, "Unknown sub-module")
+    detail = attach_citations(s)
+    detail["module_title"] = m["title"]
+    detail["module_id"] = m["module_id"]
+    return detail
 
 
 # ---------- routes: team seats (Monthly tier only) ----------
