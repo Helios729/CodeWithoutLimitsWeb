@@ -50,7 +50,7 @@ backed by FastAPI + MongoDB.
 - `/app/frontend/src/components/TokenMeter.tsx` — header meter on every signed-in screen.
 
 ## Out of scope (v1)
-- BYOK (free tier currently blocked — upgrade to use AI).
+- ~~BYOK (free tier currently blocked — upgrade to use AI).~~ **DONE** — Free tier now accepts a `byok_key` per request; platform quota is never charged for BYOK calls.
 - Multi-user seat invites for monthly plan (single owner only).
 - Markdown / PDF exports.
 - Sign-language video integration.
