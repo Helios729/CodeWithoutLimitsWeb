@@ -26,14 +26,14 @@ export default function ExpoGoBanner() {
 
   useEffect(() => {
     if (!isRunningInExpoGo()) return;
-    storage.localGet(DISMISS_KEY, "").then((v) => {
+    storage.getItem(DISMISS_KEY, "").then((v) => {
       if (!v) setShow(true);
     });
   }, []);
 
   async function dismiss() {
     setShow(false);
-    await storage.localSet(DISMISS_KEY, "1");
+    await storage.setItem(DISMISS_KEY, "1");
   }
 
   if (!show) return null;
