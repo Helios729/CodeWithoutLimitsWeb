@@ -72,13 +72,19 @@ class TestUsageMe:
         assert body["daily_tokens_cap"] == 450000
         assert body["blocked"] is False
 
-    def test_usage_me_monthly_caps(self, api_client, seed_user):
+    def test_usage_me_monthly_caps_prompt_based(self, api_client, seed_user):
+        """NEW: monthly tier is prompt-based (250/mo pooled), not token-based."""
         u = seed_user("monthly")
         r = api_client.get(f"{BASE_URL}/api/usage/me", headers=auth_headers(u["token"]))
         assert r.status_code == 200
         body = r.json()
         assert body["tier"] == "monthly"
-        assert body["monthly_tokens_cap"] == 1_000_000
+        assert body["monthly_prompts_cap"] == 250, f"expected 250, got {body}"
+        assert body.get("monthly_prompts_used", 0) == 0
+        # monthly_tokens_cap should be 0 / absent (no longer enforced as cap)
+        assert body.get("monthly_tokens_cap", 0) == 0, (
+            f"monthly_tokens_cap should not be returned for monthly tier, got {body}"
+        )
 
 
 # ---------- platform-paid free-tier behavior (real Gemini calls) ----------
@@ -208,14 +214,105 @@ class TestPaidTierQuota:
         )
         assert r.status_code == 429
 
-    def test_monthly_at_token_cap_blocks(self, api_client, seed_user):
-        u = seed_user("monthly", monthly_tokens=1_000_000)
+    def test_monthly_at_prompt_cap_blocks(self, api_client, seed_user, db):
+        """NEW: monthly tier is prompt-based — 250 prompts pooled per account."""
+        u = seed_user("monthly")
+        # Seed monthly_usage at the cap directly so we don't burn real Gemini calls.
+        from datetime import datetime, timezone
+        month = datetime.now(timezone.utc).strftime("%Y-%m")
+        db.monthly_usage.insert_one({
+            "account_id": u["account_id"], "month": month,
+            "prompts": 250, "tokens": 12345,
+        })
         r = api_client.post(
             f"{BASE_URL}/api/ai/chat",
             json={"message": "hi"},
             headers=auth_headers(u["token"]),
         )
-        assert r.status_code == 429
+        assert r.status_code == 429, r.text
+        body = r.json()
+        assert body.get("error") == "quota_exceeded"
+        msg = body.get("message", "").lower()
+        assert "shared across your team" in msg or "monthly" in msg or "250" in msg, (
+            f"message should mention pooling/monthly, got: {body.get('message')}"
+        )
+
+    def test_monthly_pooled_across_users_on_same_account(self, api_client, seed_user, db):
+        """Two users on the same account_id share the 250-prompt pool."""
+        from datetime import datetime, timedelta, timezone
+        import uuid
+        shared_acct = f"acct_TEST_shared_{uuid.uuid4().hex[:8]}"
+        now = datetime.now(timezone.utc)
+        db.accounts.insert_one({
+            "account_id": shared_acct, "tier": "monthly",
+            "seats_allowed": 3, "subscription_status": "active",
+            "created_at": now,
+        })
+        users = []
+        for _ in range(2):
+            uid = f"user_TEST_{uuid.uuid4().hex[:10]}"
+            tok = f"sess_TEST_{uuid.uuid4().hex}"
+            db.users.insert_one({
+                "user_id": uid, "email": f"TEST_{uuid.uuid4().hex[:8]}@x.com",
+                "account_id": shared_acct, "is_account_owner": False,
+                "created_at": now, "updated_at": now,
+            })
+            db.user_sessions.insert_one({
+                "session_token": tok, "user_id": uid,
+                "expires_at": now + timedelta(days=1), "created_at": now,
+            })
+            users.append({"user_id": uid, "token": tok})
+        # Seed pooled monthly_usage at the cap (combined prompts already 250).
+        month = now.strftime("%Y-%m")
+        db.monthly_usage.insert_one({
+            "account_id": shared_acct, "month": month,
+            "prompts": 250, "tokens": 0,
+        })
+        try:
+            for user in users:
+                r = api_client.post(
+                    f"{BASE_URL}/api/ai/chat",
+                    json={"message": "hi"},
+                    headers=auth_headers(user["token"]),
+                )
+                assert r.status_code == 429, (
+                    f"user {user['user_id']} on pooled acct must be blocked at 250, got {r.status_code}: {r.text}"
+                )
+                assert r.json().get("error") == "quota_exceeded"
+        finally:
+            db.users.delete_many({"user_id": {"$in": [u["user_id"] for u in users]}})
+            db.user_sessions.delete_many({"session_token": {"$in": [u["token"] for u in users]}})
+            db.accounts.delete_one({"account_id": shared_acct})
+            db.monthly_usage.delete_many({"account_id": shared_acct})
+
+    def test_monthly_249_prompts_still_allows_one_more(self, api_client, seed_user, db):
+        """With 249 prompts used, usage/me must report unblocked and 1 prompt left."""
+        from datetime import datetime, timezone
+        u = seed_user("monthly")
+        month = datetime.now(timezone.utc).strftime("%Y-%m")
+        db.monthly_usage.insert_one({
+            "account_id": u["account_id"], "month": month,
+            "prompts": 249, "tokens": 0,
+        })
+        r = api_client.get(f"{BASE_URL}/api/usage/me", headers=auth_headers(u["token"]))
+        assert r.status_code == 200
+        body = r.json()
+        assert body["monthly_prompts_used"] == 249
+        assert body["monthly_prompts_cap"] == 250
+        assert body["blocked"] is False
+
+    def test_monthly_checkout_returns_stripe_url(self, api_client, seed_user):
+        u = seed_user("free")
+        r = api_client.post(
+            f"{BASE_URL}/api/billing/checkout",
+            json={"plan": "monthly"},
+            headers=auth_headers(u["token"]),
+            timeout=30,
+        )
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert body["url"].startswith("https://checkout.stripe.com")
+        assert body["session_id"].startswith("cs_")
 
     def test_day_pass_expired_downgrades_to_free(self, api_client, seed_user):
         u = seed_user("day_pass", day_pass_expired=True)

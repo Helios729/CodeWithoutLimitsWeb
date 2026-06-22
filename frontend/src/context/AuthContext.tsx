@@ -24,8 +24,9 @@ export type Usage = {
   daily_prompts_cap: number;
   daily_tokens_used: number;
   daily_tokens_cap: number;
+  monthly_prompts_used: number;
+  monthly_prompts_cap: number;
   monthly_tokens_used: number;
-  monthly_tokens_cap: number;
   blocked: boolean;
   reason: string;
   day_pass_expires_at?: string | null;

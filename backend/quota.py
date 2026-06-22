@@ -2,12 +2,13 @@
 Token / prompt quota enforcement.
 
 Tiers (per problem statement — hard limits, NEVER exceed):
-- free          : platform LLM disabled (BYOK not in v1; surface upgrade message).
-- day_pass ($3) : max 6 prompts/day OR 450,000 tokens/day, whichever is first.
-                  Counted per USER, resets at UTC midnight.
-                  Day pass expires 24h after purchase.
-- monthly ($10) : max 1,000,000 tokens / calendar month.
-                  Counted at the ACCOUNT level, shared across up to 3 seats.
+- free          : 5 platform-paid prompts / 50,000 tokens per learner per day.
+                  Resets at UTC midnight. Designed for learners in low-income
+                  contexts who don't have credit cards or Google Cloud projects.
+- day_pass ($3) : 6 prompts/day per user. Token cap kept as a generous safety
+                  net so a runaway prompt can't accidentally burn the budget.
+- monthly ($10) : 250 prompts / calendar month, pooled across up to 3 users
+                  per account. Token cap kept as a safety net.
 
 Enforcement order (mandatory): we read the persisted counter BEFORE each
 Gemini call, refuse if the call would exceed the cap, then atomically
@@ -26,7 +27,8 @@ FREE_DAILY_PROMPT_CAP = 5
 FREE_DAILY_TOKEN_CAP = 50_000
 DAY_PASS_PROMPT_CAP = 6
 DAY_PASS_TOKEN_CAP = 450_000
-MONTHLY_TOKEN_CAP = 1_000_000
+MONTHLY_TOKEN_CAP = 1_000_000  # legacy safety net only — UI/quota gates are prompt-based now
+MONTHLY_PROMPT_CAP = 250
 MONTHLY_SEAT_CAP = 3
 
 
@@ -47,8 +49,9 @@ class QuotaSnapshot:
     daily_tokens_used: int
     daily_prompts_cap: int
     daily_tokens_cap: int
+    monthly_prompts_used: int
+    monthly_prompts_cap: int
     monthly_tokens_used: int
-    monthly_tokens_cap: int
     blocked: bool
     reason: str  # "" when not blocked
 
@@ -98,7 +101,7 @@ async def snapshot(db, user_id: str, account_id: str) -> QuotaSnapshot:
     ) or {"prompts": 0, "tokens": 0}
     monthly = await db.monthly_usage.find_one(
         {"account_id": account_id, "month": month}, {"_id": 0}
-    ) or {"tokens": 0}
+    ) or {"prompts": 0, "tokens": 0}
 
     blocked = False
     reason = ""
@@ -132,11 +135,11 @@ async def snapshot(db, user_id: str, account_id: str) -> QuotaSnapshot:
                 "You've reached your daily token limit. Your access resets tomorrow."
             )
     elif tier == "monthly":
-        if monthly.get("tokens", 0) >= MONTHLY_TOKEN_CAP:
+        if monthly.get("prompts", 0) >= MONTHLY_PROMPT_CAP:
             blocked = True
             reason = (
-                "Your account has reached its 1,000,000-token monthly limit. "
-                "Access resets on the 1st of next month."
+                f"Your account has used all {MONTHLY_PROMPT_CAP} prompts for this month "
+                "(shared across your team). Access resets on the 1st of next month."
             )
 
     return QuotaSnapshot(
@@ -153,8 +156,9 @@ async def snapshot(db, user_id: str, account_id: str) -> QuotaSnapshot:
             else DAY_PASS_TOKEN_CAP if tier == "day_pass"
             else 0
         ),
+        monthly_prompts_used=monthly.get("prompts", 0),
+        monthly_prompts_cap=MONTHLY_PROMPT_CAP if tier == "monthly" else 0,
         monthly_tokens_used=monthly.get("tokens", 0),
-        monthly_tokens_cap=MONTHLY_TOKEN_CAP if tier == "monthly" else 0,
         blocked=blocked,
         reason=reason,
     )
@@ -203,11 +207,12 @@ async def record_usage(
         },
         upsert=True,
     )
-    # Per-account monthly aggregate (drives the 1M-token cap shared by seats).
+    # Per-account monthly aggregate. We track prompts (the user-facing cap)
+    # AND tokens (kept for analytics / cost monitoring).
     await db.monthly_usage.update_one(
         {"account_id": account_id, "month": month},
         {
-            "$inc": {"tokens": tokens},
+            "$inc": {"prompts": 1, "tokens": tokens},
             "$setOnInsert": {
                 "account_id": account_id,
                 "month": month,

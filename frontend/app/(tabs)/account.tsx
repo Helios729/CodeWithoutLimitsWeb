@@ -27,11 +27,11 @@ const TIERS: {
 }[] = [
   {
     key: "free",
-    title: "Free (BYOK)",
+    title: "Free",
     price: "$0",
     perks: [
-      "All learning modules + agents",
       "5 AI prompts every day — platform-paid",
+      "All learning modules + agents",
       "No credit card, no key needed",
       "Built for low-income learners worldwide",
     ],
@@ -42,9 +42,9 @@ const TIERS: {
     title: "Day Pass",
     price: "$3 / 24 hours",
     perks: [
-      "Up to 6 AI prompts in 24 hours",
-      "OR 450,000 tokens — whichever first",
+      "6 AI prompts in 24 hours",
       "Quizzes, agent chat, and exports",
+      "Auto-downgrades to Free when it expires",
     ],
     testID: "tier-day-btn",
   },
@@ -53,8 +53,8 @@ const TIERS: {
     title: "Monthly Cooperative",
     price: "$10 / month",
     perks: [
-      "Up to 1,000,000 tokens / month",
-      "Share with up to 3 users on one account",
+      "250 prompts / month — pooled",
+      "Share with up to 3 users per account",
       "Includes all Day Pass features",
     ],
     highlight: true,
@@ -132,18 +132,16 @@ export default function Account() {
           </Text>
           {usage?.tier === "day_pass" ? (
             <Text style={styles.statsRow}>
-              {usage.daily_prompts_used}/{usage.daily_prompts_cap} prompts ·{" "}
-              {usage.daily_tokens_used.toLocaleString()}/
-              {usage.daily_tokens_cap.toLocaleString()} tokens today
+              {usage.daily_prompts_used}/{usage.daily_prompts_cap} prompts used today
             </Text>
           ) : usage?.tier === "monthly" ? (
             <Text style={styles.statsRow}>
-              {usage.monthly_tokens_used.toLocaleString()}/
-              {usage.monthly_tokens_cap.toLocaleString()} tokens this month
+              {usage.monthly_prompts_used}/{usage.monthly_prompts_cap} prompts used this month
+              {" "}(shared across your team)
             </Text>
           ) : (
             <Text style={styles.statsRow}>
-              Free tier — upgrade to run AI features.
+              {usage?.daily_prompts_used ?? 0}/{usage?.daily_prompts_cap ?? 5} free prompts used today
             </Text>
           )}
         </View>

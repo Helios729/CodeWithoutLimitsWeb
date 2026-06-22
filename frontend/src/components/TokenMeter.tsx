@@ -34,9 +34,10 @@ export default function TokenMeter() {
       (usage.daily_tokens_used / Math.max(1, usage.daily_tokens_cap || 1)) * 100,
     );
   } else if (usage.tier === "monthly") {
-    const left = Math.max(0, usage.monthly_tokens_cap - usage.monthly_tokens_used);
-    label = `${Math.round(left / 1000)}k / ${Math.round(usage.monthly_tokens_cap / 1000)}k tok`;
-    pct = (usage.monthly_tokens_used / Math.max(1, usage.monthly_tokens_cap)) * 100;
+    const cap = usage.monthly_prompts_cap || 1;
+    const left = Math.max(0, cap - (usage.monthly_prompts_used || 0));
+    label = `${left}/${cap} prompts left`;
+    pct = ((usage.monthly_prompts_used || 0) / Math.max(1, cap)) * 100;
   } else {
     label = "Free";
     pct = 0;
