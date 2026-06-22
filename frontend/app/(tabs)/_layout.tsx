@@ -1,11 +1,28 @@
 import { Ionicons } from "@expo/vector-icons";
-import { Tabs } from "expo-router";
+import { Redirect, Tabs } from "expo-router";
+import { ActivityIndicator, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { useAuth } from "@/src/context/AuthContext";
 import { colors } from "@/src/theme";
 
 export default function TabsLayout() {
   const insets = useSafeAreaInsets();
+  const { user, loading } = useAuth();
+
+  // Auth guard: deep-linking to /home, /quiz, /studio, /account etc must
+  // not render the tab shell without a user — otherwise screens look empty.
+  if (loading) {
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator color={colors.brand} size="large" />
+      </View>
+    );
+  }
+  if (!user) {
+    return <Redirect href="/welcome" />;
+  }
+
   return (
     <Tabs
       screenOptions={{
@@ -60,3 +77,12 @@ export default function TabsLayout() {
     </Tabs>
   );
 }
+
+const styles = StyleSheet.create({
+  center: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.bg,
+  },
+});
