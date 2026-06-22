@@ -1,5 +1,5 @@
 """
-Small AI Asset Studio / Code Guardian — FastAPI backend.
+Small AI Asset Studio / Code Without Limits — FastAPI backend.
 
 What this file wires together:
 1. Emergent Google Auth session validation + Bearer-token API auth.
@@ -68,7 +68,7 @@ STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
 if STRIPE_API_KEY:
     stripe.api_key = STRIPE_API_KEY
 
-app = FastAPI(title="Code Guardian API")
+app = FastAPI(title="Code Without Limits API")
 api = APIRouter(prefix="/api")
 
 
@@ -145,7 +145,7 @@ async def get_current_user(authorization: Optional[str] = Header(default=None)) 
 # ---------- routes: health ----------
 @api.get("/")
 async def root():
-    return {"status": "ok", "service": "Code Guardian API"}
+    return {"status": "ok", "service": "Code Without Limits API"}
 
 
 # ---------- routes: auth ----------
@@ -645,7 +645,7 @@ async def billing_checkout(body: CheckoutIn, request: Request, user=Depends(get_
                         "currency": "usd",
                         "unit_amount": 300,
                         "product_data": {
-                            "name": "Code Guardian — Day Pass",
+                            "name": "Code Without Limits — Day Pass",
                             "description": "24-hour AI access: up to 6 prompts or 450,000 tokens.",
                         },
                     },
@@ -670,7 +670,7 @@ async def billing_checkout(body: CheckoutIn, request: Request, user=Depends(get_
                         "unit_amount": 1000,
                         "recurring": {"interval": "month"},
                         "product_data": {
-                            "name": "Code Guardian — Monthly (up to 3 users)",
+                            "name": "Code Without Limits — Monthly (up to 3 users)",
                             "description": "Up to 1,000,000 tokens / month, shared across 3 users.",
                         },
                     },
@@ -854,7 +854,7 @@ async def on_startup():
     # Pre-seed scraping in the background — never blocks startup.
     import asyncio
     asyncio.create_task(preseed_all(db))
-    logger.info("Code Guardian API ready")
+    logger.info("Code Without Limits API ready")
 
 
 @app.on_event("shutdown")

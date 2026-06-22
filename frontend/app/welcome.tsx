@@ -85,7 +85,7 @@ export default function Welcome() {
       <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
         <View style={styles.brandRow}>
           <View style={styles.dot} />
-          <Text style={styles.brandName}>Code Guardian</Text>
+          <Text style={styles.brandName}>Code Without Limits</Text>
         </View>
 
         <View style={styles.hero}>

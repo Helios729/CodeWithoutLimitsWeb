@@ -1,8 +1,9 @@
-# Code Guardian — Product Requirements
+# Code Without Limits — Product Requirements
 
 ## Vision
 Mobile-first AI learning + digital-asset studio for low-bandwidth, energy-constrained learners
-(Mondial Connections / Community Changers Foundations). Rebuilt as an Expo React Native app
+(Mondial Connections / Community Changers Foundations). Previously titled "Code Guardian";
+rebranded to **Code Without Limits**. Rebuilt as an Expo React Native app
 backed by FastAPI + MongoDB.
 
 ## Core requirements implemented (v1)
