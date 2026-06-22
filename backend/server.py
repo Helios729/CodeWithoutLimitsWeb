@@ -585,6 +585,199 @@ async def quiz_history(user=Depends(get_current_user)):
     return {"quizzes": rows}
 
 
+# ---------- routes: team seats (Monthly tier only) ----------
+# Account owners on the Monthly plan can invite up to 2 teammates so the
+# 250-prompt-per-month pool is genuinely shared. Anyone joining a team
+# has their personal account_id reassigned to the owner's account, so
+# their future calls increment the same monthly_usage row.
+
+INVITE_TTL_DAYS = 14
+
+
+@api.get("/account/seats")
+async def list_seats(user=Depends(get_current_user)):
+    """List everyone currently seated on this account + any pending invites.
+    Anyone on the account can read this so they know who else is on the team."""
+    seats = await db.users.find(
+        {"account_id": user["account_id"]},
+        {"_id": 0, "user_id": 1, "email": 1, "name": 1, "picture": 1, "is_account_owner": 1},
+    ).to_list(10)
+    invites = await db.account_invites.find(
+        {"account_id": user["account_id"], "used_by": None,
+         "expires_at": {"$gt": datetime.now(timezone.utc)}},
+        {"_id": 0, "token": 1, "created_at": 1, "expires_at": 1, "label": 1},
+    ).to_list(10)
+    acct = await get_account(db, user["account_id"])
+    return {
+        "tier": acct.get("tier", "free"),
+        "seats_used": len(seats),
+        "seats_allowed": acct.get("seats_allowed", 1),
+        "is_owner": bool(user.get("is_account_owner")),
+        "seats": seats,
+        "invites": invites,
+    }
+
+
+class InviteCreateIn(BaseModel):
+    label: Optional[str] = None  # optional note: "Maria's email", etc.
+
+
+@api.post("/account/invite")
+async def create_invite(body: InviteCreateIn, user=Depends(get_current_user)):
+    """Owner-only. Generates a one-time invite token. The owner shares the
+    link with their teammate; the teammate signs in and accepts. We refuse
+    when the account is already full so the cap can never be exceeded."""
+    if not user.get("is_account_owner"):
+        raise HTTPException(403, "Only the account owner can invite teammates.")
+    acct = await get_account(db, user["account_id"])
+    if acct.get("tier") != "monthly":
+        raise HTTPException(
+            400,
+            "Seat invites are available on the Monthly Cooperative plan ($10/mo, up to 3 users).",
+        )
+    seats = await db.users.count_documents({"account_id": user["account_id"]})
+    pending = await db.account_invites.count_documents(
+        {"account_id": user["account_id"], "used_by": None,
+         "expires_at": {"$gt": datetime.now(timezone.utc)}}
+    )
+    allowed = acct.get("seats_allowed", 3)
+    if seats + pending >= allowed:
+        raise HTTPException(400, f"Your team is full ({allowed} of {allowed} seats).")
+    token = uuid.uuid4().hex[:12]
+    now = datetime.now(timezone.utc)
+    await db.account_invites.insert_one({
+        "token": token,
+        "account_id": user["account_id"],
+        "created_by": user["user_id"],
+        "label": (body.label or "").strip()[:80] or None,
+        "created_at": now,
+        "expires_at": now + timedelta(days=INVITE_TTL_DAYS),
+        "used_by": None,
+        "used_at": None,
+    })
+    return {
+        "token": token,
+        # Owner shares this link; recipient must sign in then visit it.
+        "join_url": f"{FRONTEND_URL.rstrip('/')}/account/join?token={token}",
+        "expires_at": now + timedelta(days=INVITE_TTL_DAYS),
+    }
+
+
+@api.get("/account/invite/{token}")
+async def get_invite(token: str):
+    """Public — used by the join screen to show 'You're being invited to X's
+    Monthly team' before the recipient confirms."""
+    inv = await db.account_invites.find_one({"token": token}, {"_id": 0})
+    if not inv:
+        raise HTTPException(404, "Invite not found")
+    exp = inv["expires_at"]
+    if exp.tzinfo is None:
+        exp = exp.replace(tzinfo=timezone.utc)
+    if inv.get("used_by"):
+        return {"status": "used"}
+    if exp < datetime.now(timezone.utc):
+        return {"status": "expired"}
+    owner = await db.users.find_one(
+        {"user_id": inv["created_by"]}, {"_id": 0, "name": 1, "email": 1}
+    )
+    return {
+        "status": "valid",
+        "owner_name": (owner or {}).get("name") or (owner or {}).get("email"),
+        "label": inv.get("label"),
+    }
+
+
+class InviteAcceptIn(BaseModel):
+    token: str
+
+
+@api.post("/account/invite/accept")
+async def accept_invite(body: InviteAcceptIn, user=Depends(get_current_user)):
+    """Authenticated. Moves the current user's account_id over to the inviter's
+    account. We re-check the seat cap inside this transaction so a race
+    between two acceptances can never put us over 3."""
+    inv = await db.account_invites.find_one({"token": body.token}, {"_id": 0})
+    if not inv:
+        raise HTTPException(404, "Invite not found")
+    if inv.get("used_by"):
+        raise HTTPException(400, "This invite has already been used.")
+    exp = inv["expires_at"]
+    if exp.tzinfo is None:
+        exp = exp.replace(tzinfo=timezone.utc)
+    if exp < datetime.now(timezone.utc):
+        raise HTTPException(400, "This invite has expired.")
+    if inv["account_id"] == user["account_id"]:
+        raise HTTPException(400, "You're already on this team.")
+
+    acct = await get_account(db, inv["account_id"])
+    seats = await db.users.count_documents({"account_id": inv["account_id"]})
+    if seats >= acct.get("seats_allowed", 3):
+        raise HTTPException(400, "That team is already full.")
+
+    now = datetime.now(timezone.utc)
+    old_account_id = user["account_id"]
+    await db.users.update_one(
+        {"user_id": user["user_id"]},
+        {"$set": {
+            "account_id": inv["account_id"],
+            "is_account_owner": False,
+            "updated_at": now,
+        }},
+    )
+    await db.account_invites.update_one(
+        {"token": body.token},
+        {"$set": {"used_by": user["user_id"], "used_at": now}},
+    )
+    # Clean up the orphaned personal account if it has no users left.
+    remaining = await db.users.count_documents({"account_id": old_account_id})
+    if remaining == 0:
+        await db.accounts.delete_one({"account_id": old_account_id})
+    return {"ok": True, "account_id": inv["account_id"]}
+
+
+@api.delete("/account/invite/{token}")
+async def revoke_invite(token: str, user=Depends(get_current_user)):
+    if not user.get("is_account_owner"):
+        raise HTTPException(403, "Only the account owner can revoke invites.")
+    res = await db.account_invites.delete_one(
+        {"token": token, "account_id": user["account_id"], "used_by": None}
+    )
+    if res.deleted_count == 0:
+        raise HTTPException(404, "Invite not found or already used.")
+    return {"ok": True}
+
+
+@api.delete("/account/seats/{seat_user_id}")
+async def remove_seat(seat_user_id: str, user=Depends(get_current_user)):
+    """Owner removes a teammate. The teammate is moved back to a fresh
+    personal account (free tier) so their data isn't lost."""
+    if not user.get("is_account_owner"):
+        raise HTTPException(403, "Only the account owner can remove teammates.")
+    if seat_user_id == user["user_id"]:
+        raise HTTPException(400, "Owners cannot remove themselves.")
+    seat = await db.users.find_one(
+        {"user_id": seat_user_id, "account_id": user["account_id"]}, {"_id": 0}
+    )
+    if not seat:
+        raise HTTPException(404, "Seat not found on your team.")
+    now = datetime.now(timezone.utc)
+    new_account_id = f"acct_{uuid.uuid4().hex[:12]}"
+    await db.accounts.insert_one({
+        "account_id": new_account_id,
+        "tier": "free",
+        "day_pass_expires_at": None,
+        "subscription_status": None,
+        "seats_allowed": 1,
+        "owner_user_id": seat_user_id,
+        "created_at": now,
+    })
+    await db.users.update_one(
+        {"user_id": seat_user_id},
+        {"$set": {"account_id": new_account_id, "is_account_owner": True, "updated_at": now}},
+    )
+    return {"ok": True}
+
+
 # ---------- routes: agent chat ----------
 AGENT_SYSTEM = {
     "OER AI Tutor Agent": "You are an OER AI Tutor — teach AI concepts in plain language with short, mobile-friendly examples.",
@@ -851,6 +1044,8 @@ async def on_startup():
     await db.user_sessions.create_index("expires_at", expireAfterSeconds=0)
     await db.accounts.create_index("account_id", unique=True)
     await db.accounts.create_index("stripe_customer_id")
+    await db.account_invites.create_index("token", unique=True)
+    await db.account_invites.create_index("account_id")
     await db.daily_usage.create_index([("user_id", 1), ("date", 1)], unique=True)
     await db.monthly_usage.create_index([("account_id", 1), ("month", 1)], unique=True)
     await db.scraped_content.create_index("url", unique=True)

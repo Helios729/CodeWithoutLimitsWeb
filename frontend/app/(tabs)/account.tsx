@@ -147,6 +147,22 @@ export default function Account() {
         </View>
 
         <Text style={styles.sectionH}>Upgrade</Text>
+        {usage?.tier === "monthly" ? (
+          <TouchableOpacity
+            style={styles.teamLink}
+            onPress={() => router.push("/account/seats")}
+            testID="manage-team-btn"
+          >
+            <Ionicons name="people-outline" size={20} color={colors.brand} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.teamLinkTitle}>Manage your team</Text>
+              <Text style={styles.teamLinkBody}>
+                Invite up to 2 teammates to share your 250 prompts/month.
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
+          </TouchableOpacity>
+        ) : null}
         {TIERS.map((tier) => (
           <View
             key={tier.key}
