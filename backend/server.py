@@ -1,59 +1,769 @@
-from fastapi import FastAPI, APIRouter
-from dotenv import load_dotenv
-from starlette.middleware.cors import CORSMiddleware
-from motor.motor_asyncio import AsyncIOMotorClient
-import os
+"""
+Small AI Asset Studio / Code Guardian — FastAPI backend.
+
+What this file wires together:
+1. Emergent Google Auth session validation + Bearer-token API auth.
+2. Strict pre-call quota enforcement (see quota.py).
+3. Gemini 2.5 Pro via emergentintegrations.LlmChat — quiz generation
+   and agent chat. Real token counts come from the model's usage
+   metadata and are persisted before the response is returned.
+4. Web scraping with cache + robots.txt + allowlist (see scraper.py).
+5. Stripe Checkout (Day Pass / Monthly Sub) + webhook to flip tier.
+
+Every route is prefixed with /api so the Kubernetes ingress routes
+them correctly. _id is always excluded from MongoDB responses.
+"""
+
+import json
 import logging
-from pathlib import Path
-from pydantic import BaseModel, Field
-from typing import List
+import os
+import re
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+from typing import Any, Optional
+
+import httpx
+import stripe
+from bs4 import BeautifulSoup  # noqa: F401  (used indirectly via scraper)
+from dotenv import load_dotenv
+from fastapi import APIRouter, Depends, FastAPI, Header, HTTPException, Request
+from fastapi.responses import JSONResponse
+from motor.motor_asyncio import AsyncIOMotorClient
+from pydantic import BaseModel, Field
+from starlette.middleware.cors import CORSMiddleware
+
+from emergentintegrations.llm.chat import LlmChat, UserMessage
+
+from quota import (
+    DAY_PASS_PROMPT_CAP,
+    DAY_PASS_TOKEN_CAP,
+    MONTHLY_TOKEN_CAP,
+    assert_can_call,
+    get_account,
+    record_usage,
+    snapshot,
+)
+from scraper import preseed_all, scrape_topic
+from sources import TOPIC_CATALOG, get_topic
 
 
+# ---------- bootstrap ----------
 ROOT_DIR = Path(__file__).parent
-load_dotenv(ROOT_DIR / '.env')
+load_dotenv(ROOT_DIR / ".env")
 
-# MongoDB connection
-mongo_url = os.environ['MONGO_URL']
-client = AsyncIOMotorClient(mongo_url)
-db = client[os.environ['DB_NAME']]
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+logger = logging.getLogger("codeguardian")
 
-# Create the main app without a prefix
-app = FastAPI()
+mongo_url = os.environ["MONGO_URL"]
+mongo = AsyncIOMotorClient(mongo_url)
+db = mongo[os.environ["DB_NAME"]]
 
-# Create a router with the /api prefix
-api_router = APIRouter(prefix="/api")
+EMERGENT_LLM_KEY = os.environ.get("EMERGENT_LLM_KEY", "")
+GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-pro")
+FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:3000")
+STRIPE_API_KEY = os.environ.get("STRIPE_API_KEY", "")
+STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
+
+if STRIPE_API_KEY:
+    stripe.api_key = STRIPE_API_KEY
+
+app = FastAPI(title="Code Guardian API")
+api = APIRouter(prefix="/api")
 
 
-# Define Models
-class StatusCheck(BaseModel):
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    client_name: str
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+# ---------- models ----------
+class SessionIn(BaseModel):
+    session_id: str
 
-class StatusCheckCreate(BaseModel):
-    client_name: str
 
-# Add your routes to the router instead of directly to app
-@api_router.get("/")
+class UserOut(BaseModel):
+    id: str
+    email: str
+    name: Optional[str] = None
+    picture: Optional[str] = None
+    account_id: str
+
+
+class UsageOut(BaseModel):
+    tier: str
+    daily_prompts_used: int = 0
+    daily_prompts_cap: int = 0
+    daily_tokens_used: int = 0
+    daily_tokens_cap: int = 0
+    monthly_tokens_used: int = 0
+    monthly_tokens_cap: int = 0
+    blocked: bool = False
+    reason: str = ""
+    day_pass_expires_at: Optional[datetime] = None
+
+
+class QuizGenerateIn(BaseModel):
+    topic_id: str
+
+
+class QuizSubmitIn(BaseModel):
+    quiz_id: str
+    answers: list[int]  # selected option indexes, length 10
+
+
+class ChatIn(BaseModel):
+    message: str
+    agent: Optional[str] = "OER AI Tutor Agent"
+
+
+class CheckoutIn(BaseModel):
+    plan: str  # "day_pass" or "monthly"
+
+
+# ---------- auth helpers ----------
+async def get_current_user(authorization: Optional[str] = Header(default=None)) -> dict:
+    """Bearer-token auth. Looks up the session_token in user_sessions,
+    confirms it's still valid (timezone-aware), then loads the user.
+    Returns the user record. Excludes _id everywhere."""
+    if not authorization or not authorization.lower().startswith("bearer "):
+        raise HTTPException(401, "Missing Bearer token")
+    token = authorization.split(" ", 1)[1].strip()
+    sess = await db.user_sessions.find_one({"session_token": token}, {"_id": 0})
+    if not sess:
+        raise HTTPException(401, "Invalid session")
+    exp = sess.get("expires_at")
+    if exp and exp.tzinfo is None:
+        exp = exp.replace(tzinfo=timezone.utc)
+    if not exp or exp < datetime.now(timezone.utc):
+        raise HTTPException(401, "Session expired")
+    user = await db.users.find_one({"user_id": sess["user_id"]}, {"_id": 0})
+    if not user:
+        raise HTTPException(401, "User not found")
+    return user
+
+
+# ---------- routes: health ----------
+@api.get("/")
 async def root():
-    return {"message": "Hello World"}
+    return {"status": "ok", "service": "Code Guardian API"}
 
-@api_router.post("/status", response_model=StatusCheck)
-async def create_status_check(input: StatusCheckCreate):
-    status_dict = input.dict()
-    status_obj = StatusCheck(**status_dict)
-    _ = await db.status_checks.insert_one(status_obj.dict())
-    return status_obj
 
-@api_router.get("/status", response_model=List[StatusCheck])
-async def get_status_checks():
-    status_checks = await db.status_checks.find().to_list(1000)
-    return [StatusCheck(**status_check) for status_check in status_checks]
+# ---------- routes: auth ----------
+@api.post("/auth/session")
+async def auth_session(body: SessionIn):
+    """Exchange Emergent session_id (from the auth redirect) for a
+    persistent session_token. Upserts the user by email so repeated
+    sign-ins never create duplicates."""
+    try:
+        async with httpx.AsyncClient(timeout=15) as c:
+            r = await c.get(
+                "https://demobackend.emergentagent.com/auth/v1/env/oauth/session-data",
+                headers={"X-Session-ID": body.session_id},
+            )
+            if r.status_code != 200:
+                raise HTTPException(401, "Invalid session_id")
+            data = r.json()
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("Emergent auth exchange failed")
+        raise HTTPException(502, f"Auth provider unreachable: {e}")
 
-# Include the router in the main app
-app.include_router(api_router)
+    email = data.get("email")
+    if not email:
+        raise HTTPException(400, "No email in session")
+
+    now = datetime.now(timezone.utc)
+    existing = await db.users.find_one({"email": email}, {"_id": 0})
+    if existing:
+        user_id = existing["user_id"]
+        account_id = existing.get("account_id") or user_id
+        await db.users.update_one(
+            {"user_id": user_id},
+            {"$set": {
+                "name": data.get("name") or existing.get("name"),
+                "picture": data.get("picture") or existing.get("picture"),
+                "updated_at": now,
+            }},
+        )
+    else:
+        user_id = f"user_{uuid.uuid4().hex[:12]}"
+        account_id = f"acct_{uuid.uuid4().hex[:12]}"
+        await db.users.insert_one({
+            "user_id": user_id,
+            "email": email,
+            "name": data.get("name"),
+            "picture": data.get("picture"),
+            "account_id": account_id,
+            "is_account_owner": True,
+            "created_at": now,
+            "updated_at": now,
+        })
+        await db.accounts.insert_one({
+            "account_id": account_id,
+            "tier": "free",
+            "day_pass_expires_at": None,
+            "subscription_status": None,
+            "stripe_customer_id": None,
+            "stripe_subscription_id": None,
+            "seats_allowed": 1,
+            "owner_user_id": user_id,
+            "created_at": now,
+        })
+
+    session_token = data.get("session_token") or uuid.uuid4().hex
+    await db.user_sessions.insert_one({
+        "session_token": session_token,
+        "user_id": user_id,
+        "expires_at": now + timedelta(days=7),
+        "created_at": now,
+    })
+    return {
+        "token": session_token,
+        "user": {
+            "id": user_id,
+            "email": email,
+            "name": data.get("name"),
+            "picture": data.get("picture"),
+            "account_id": account_id,
+        },
+    }
+
+
+@api.get("/auth/me", response_model=UserOut)
+async def auth_me(user=Depends(get_current_user)):
+    return UserOut(
+        id=user["user_id"],
+        email=user["email"],
+        name=user.get("name"),
+        picture=user.get("picture"),
+        account_id=user.get("account_id") or user["user_id"],
+    )
+
+
+@api.post("/auth/logout")
+async def auth_logout(authorization: Optional[str] = Header(default=None)):
+    if authorization and authorization.lower().startswith("bearer "):
+        token = authorization.split(" ", 1)[1].strip()
+        await db.user_sessions.delete_one({"session_token": token})
+    return {"ok": True}
+
+
+# ---------- routes: usage / quota ----------
+@api.get("/usage/me", response_model=UsageOut)
+async def usage_me(user=Depends(get_current_user)):
+    snap = await snapshot(db, user["user_id"], user["account_id"])
+    acct = await get_account(db, user["account_id"])
+    return UsageOut(
+        tier=snap.tier,
+        daily_prompts_used=snap.daily_prompts_used,
+        daily_prompts_cap=snap.daily_prompts_cap,
+        daily_tokens_used=snap.daily_tokens_used,
+        daily_tokens_cap=snap.daily_tokens_cap,
+        monthly_tokens_used=snap.monthly_tokens_used,
+        monthly_tokens_cap=snap.monthly_tokens_cap,
+        blocked=snap.blocked,
+        reason=snap.reason,
+        day_pass_expires_at=acct.get("day_pass_expires_at"),
+    )
+
+
+# ---------- routes: educational content ----------
+@api.get("/content/topics")
+async def list_topics():
+    """Topic catalog the learner picks from. Static list — the heavy
+    scraped text only loads when a quiz is generated."""
+    return {"topics": [
+        {
+            "topic_id": t["topic_id"],
+            "title": t["title"],
+            "description": t["description"],
+            "source_count": len(t["sources"]),
+            "institutions": sorted({s["institution"] for s in t["sources"]}),
+        }
+        for t in TOPIC_CATALOG
+    ]}
+
+
+@api.get("/content/topic/{topic_id}")
+async def topic_detail(topic_id: str, user=Depends(get_current_user)):
+    """On-demand fetch (returns cached if present). Source content is
+    short-form so we don't return huge payloads to the phone."""
+    data = await scrape_topic(db, topic_id, force=False)
+    if not data:
+        raise HTTPException(404, "Unknown topic")
+    # Strip the heavy text from the response — UI only needs citations.
+    return {
+        "topic_id": data["topic_id"],
+        "title": data["title"],
+        "description": data["description"],
+        "sources": [
+            {
+                "url": s["url"],
+                "institution": s["institution"],
+                "title": s["title"],
+                "status": s["status"],
+            }
+            for s in data["sources"]
+        ],
+    }
+
+
+# ---------- LLM helpers ----------
+def _extract_usage_tokens(chat: LlmChat, fallback_text: str) -> int:
+    """Best-effort token extraction from the LiteLLM ModelResponse the
+    chat object stashes after send_message(). We try a few field names
+    because providers/SDK versions vary, and fall back to a conservative
+    char-based estimate so quota tracking is never silently zero."""
+    try:
+        raw = getattr(chat, "_last_response", None) or getattr(chat, "last_response", None)
+        if raw is not None:
+            usage = getattr(raw, "usage", None)
+            if usage is not None:
+                total = getattr(usage, "total_tokens", None)
+                if total:
+                    return int(total)
+                prompt = getattr(usage, "prompt_tokens", 0) or 0
+                comp = getattr(usage, "completion_tokens", 0) or 0
+                if prompt or comp:
+                    return int(prompt) + int(comp)
+    except Exception:
+        pass
+    # Fallback: ~4 chars per token; never returns 0 for non-empty output.
+    return max(1, len(fallback_text) // 4)
+
+
+async def _run_gemini(*, system: str, user_msg: str) -> tuple[str, int]:
+    """Single place where we actually call Gemini. The caller is
+    responsible for having already passed assert_can_call()."""
+    if not EMERGENT_LLM_KEY:
+        raise HTTPException(500, "EMERGENT_LLM_KEY not configured")
+    chat = (
+        LlmChat(
+            api_key=EMERGENT_LLM_KEY,
+            session_id=f"sess_{uuid.uuid4().hex[:10]}",
+            system_message=system,
+        )
+        .with_model("gemini", GEMINI_MODEL)
+    )
+    msg = UserMessage(text=user_msg)
+    text = await chat.send_message(msg)
+    # Pull usage out of the chat object's last response if available.
+    tokens = _extract_usage_tokens(chat, (text or "") + system + user_msg)
+    return text or "", tokens
+
+
+# ---------- routes: quiz ----------
+QUIZ_SYSTEM_PROMPT = (
+    "You are an expert exam author for an EdTech app. "
+    "Generate factual, single-answer multiple-choice questions strictly grounded in the "
+    "provided source excerpts. Never invent facts that are not supported by the sources. "
+    "Return ONLY valid JSON — no markdown fences, no commentary."
+)
+
+
+def _parse_quiz_json(text: str) -> list[dict]:
+    """The model sometimes wraps JSON in ```json fences. Strip them
+    and try to parse. Raises HTTPException on truly broken output."""
+    cleaned = text.strip()
+    fence = re.search(r"```(?:json)?\s*(.*?)```", cleaned, re.DOTALL | re.IGNORECASE)
+    if fence:
+        cleaned = fence.group(1).strip()
+    try:
+        data = json.loads(cleaned)
+    except json.JSONDecodeError:
+        # Last resort: find the first {...} block.
+        m = re.search(r"\{.*\}", cleaned, re.DOTALL)
+        if not m:
+            raise HTTPException(502, "Quiz generator returned invalid JSON")
+        data = json.loads(m.group(0))
+    questions = data.get("questions") or data.get("quiz") or data
+    if not isinstance(questions, list) or len(questions) == 0:
+        raise HTTPException(502, "Quiz generator returned no questions")
+    return questions
+
+
+@api.post("/quiz/generate")
+async def quiz_generate(body: QuizGenerateIn, user=Depends(get_current_user)):
+    """Generate exactly 10 MCQs from the scraped sources for the topic.
+    Quota is checked BEFORE the LLM call and recorded AFTER, using the
+    real usage returned by the model."""
+    try:
+        await assert_can_call(db, user["user_id"], user["account_id"])
+    except ValueError as e:
+        return JSONResponse({"error": "quota_exceeded", "message": str(e)}, status_code=429)
+
+    topic = get_topic(body.topic_id)
+    if not topic:
+        raise HTTPException(404, "Unknown topic")
+    scraped = await scrape_topic(db, body.topic_id, force=False)
+    sources_block = "\n\n".join(
+        f"[Source #{i+1}] {s['institution']} — {s['title']}\nURL: {s['url']}\nExcerpt: {s['text'][:1800]}"
+        for i, s in enumerate(scraped["sources"])
+        if s.get("text")
+    ) or "(No source excerpts available — base questions on the topic's general scope.)"
+
+    user_prompt = f"""Topic: {topic['title']}
+Description: {topic['description']}
+
+You have these source excerpts from premier educational institutions:
+{sources_block}
+
+Generate EXACTLY 10 multiple-choice questions grounded in these sources.
+
+Return JSON of the form:
+{{
+  "questions": [
+    {{
+      "question": "Question text?",
+      "options": ["Option A", "Option B", "Option C", "Option D"],
+      "correct_index": 0,
+      "explanation": "Short explanation grounded in the source.",
+      "source_index": 1
+    }}
+  ]
+}}
+
+Rules:
+- Exactly 10 items.
+- Exactly 4 options per item.
+- correct_index is 0-3.
+- source_index is 1-based and refers to which [Source #N] block supports the question.
+- Do not include markdown fences.
+"""
+    text, tokens = await _run_gemini(system=QUIZ_SYSTEM_PROMPT, user_msg=user_prompt)
+    await record_usage(
+        db, user_id=user["user_id"], account_id=user["account_id"], tokens=tokens, kind="quiz"
+    )
+    raw_questions = _parse_quiz_json(text)
+    # Force exactly 10 (truncate / pad-fail).
+    if len(raw_questions) < 10:
+        raise HTTPException(502, f"Quiz generator returned {len(raw_questions)} items (need 10)")
+    raw_questions = raw_questions[:10]
+
+    # Attach citation to each question.
+    source_map = scraped["sources"]
+    questions_out = []
+    for q in raw_questions:
+        idx = (q.get("source_index") or 1) - 1
+        idx = max(0, min(idx, len(source_map) - 1)) if source_map else 0
+        src = source_map[idx] if source_map else None
+        questions_out.append({
+            "question": q.get("question", ""),
+            "options": q.get("options", [])[:4],
+            "correct_index": int(q.get("correct_index", 0)),
+            "explanation": q.get("explanation", ""),
+            "source": (
+                {"url": src["url"], "institution": src["institution"], "title": src["title"]}
+                if src else None
+            ),
+        })
+
+    quiz_id = f"quiz_{uuid.uuid4().hex[:10]}"
+    await db.quizzes.insert_one({
+        "quiz_id": quiz_id,
+        "user_id": user["user_id"],
+        "account_id": user["account_id"],
+        "topic_id": body.topic_id,
+        "topic_title": topic["title"],
+        "questions": questions_out,
+        "submitted": False,
+        "created_at": datetime.now(timezone.utc),
+    })
+    return {
+        "quiz_id": quiz_id,
+        "topic_id": body.topic_id,
+        "topic_title": topic["title"],
+        # Send the questions BUT strip the correct answer so it can't be
+        # read from devtools before the learner submits.
+        "questions": [
+            {
+                "question": q["question"],
+                "options": q["options"],
+                "source": q["source"],
+            }
+            for q in questions_out
+        ],
+        "all_sources": [
+            {"url": s["url"], "institution": s["institution"], "title": s["title"]}
+            for s in source_map
+        ],
+        "tokens_charged": tokens,
+    }
+
+
+@api.post("/quiz/submit")
+async def quiz_submit(body: QuizSubmitIn, user=Depends(get_current_user)):
+    quiz = await db.quizzes.find_one(
+        {"quiz_id": body.quiz_id, "user_id": user["user_id"]}, {"_id": 0}
+    )
+    if not quiz:
+        raise HTTPException(404, "Quiz not found")
+    if len(body.answers) != len(quiz["questions"]):
+        raise HTTPException(400, "Answer length mismatch")
+    score = 0
+    detail = []
+    for i, q in enumerate(quiz["questions"]):
+        correct = int(q["correct_index"])
+        chosen = int(body.answers[i]) if i < len(body.answers) else -1
+        ok = chosen == correct
+        if ok:
+            score += 1
+        detail.append({
+            "question": q["question"],
+            "options": q["options"],
+            "correct_index": correct,
+            "chosen_index": chosen,
+            "is_correct": ok,
+            "explanation": q.get("explanation", ""),
+            "source": q.get("source"),
+        })
+    await db.quizzes.update_one(
+        {"quiz_id": body.quiz_id},
+        {"$set": {
+            "submitted": True,
+            "submitted_at": datetime.now(timezone.utc),
+            "answers": body.answers,
+            "score": score,
+        }},
+    )
+    return {"score": score, "total": len(quiz["questions"]), "results": detail}
+
+
+@api.get("/quiz/history")
+async def quiz_history(user=Depends(get_current_user)):
+    rows = await db.quizzes.find(
+        {"user_id": user["user_id"], "submitted": True},
+        {"_id": 0, "questions": 0, "answers": 0},
+    ).sort("submitted_at", -1).to_list(50)
+    return {"quizzes": rows}
+
+
+# ---------- routes: agent chat ----------
+AGENT_SYSTEM = {
+    "OER AI Tutor Agent": "You are an OER AI Tutor — teach AI concepts in plain language with short, mobile-friendly examples.",
+    "Prompt Efficiency Agent": "You are a low-token prompt coach. Rewrite the learner's request as one compact, reusable prompt.",
+    "Corpus Steward Agent": "You help compile culturally accurate language corpora with consent and human review.",
+    "Bloom Quiz Agent": "You generate Knowledge/Comprehension/Application level questions.",
+    "Translation & Accessibility Agent": "You produce accessible, plain-language, multilingual content.",
+    "Microenterprise Coach Agent": "You coach micro-entrepreneurs on turning AI assets into local income.",
+    "Safety & Human Verification Agent": "You flag privacy, safety, and cultural risks and require human review.",
+    "Routing Orchestrator Agent": "You suggest the right module, agent, or offline activity based on the learner's context.",
+}
+
+
+@api.post("/ai/chat")
+async def ai_chat(body: ChatIn, user=Depends(get_current_user)):
+    try:
+        await assert_can_call(db, user["user_id"], user["account_id"])
+    except ValueError as e:
+        return JSONResponse({"error": "quota_exceeded", "message": str(e)}, status_code=429)
+
+    system = AGENT_SYSTEM.get(body.agent or "", AGENT_SYSTEM["OER AI Tutor Agent"])
+    text, tokens = await _run_gemini(system=system, user_msg=body.message)
+    await record_usage(
+        db, user_id=user["user_id"], account_id=user["account_id"], tokens=tokens, kind="chat"
+    )
+    return {"reply": text, "tokens_charged": tokens, "agent": body.agent}
+
+
+# ---------- routes: billing ----------
+@api.post("/billing/checkout")
+async def billing_checkout(body: CheckoutIn, request: Request, user=Depends(get_current_user)):
+    if not STRIPE_API_KEY:
+        raise HTTPException(500, "Stripe is not configured")
+    if body.plan not in ("day_pass", "monthly"):
+        raise HTTPException(400, "Unknown plan")
+
+    base = FRONTEND_URL.rstrip("/")
+    try:
+        if body.plan == "day_pass":
+            session = stripe.checkout.Session.create(
+                mode="payment",
+                payment_method_types=["card"],
+                line_items=[{
+                    "price_data": {
+                        "currency": "usd",
+                        "unit_amount": 300,
+                        "product_data": {
+                            "name": "Code Guardian — Day Pass",
+                            "description": "24-hour AI access: up to 6 prompts or 450,000 tokens.",
+                        },
+                    },
+                    "quantity": 1,
+                }],
+                success_url=f"{base}/billing/success?session_id={{CHECKOUT_SESSION_ID}}",
+                cancel_url=f"{base}/billing/cancel",
+                customer_email=user["email"],
+                metadata={
+                    "user_id": user["user_id"],
+                    "account_id": user["account_id"],
+                    "plan": "day_pass",
+                },
+            )
+        else:
+            session = stripe.checkout.Session.create(
+                mode="subscription",
+                payment_method_types=["card"],
+                line_items=[{
+                    "price_data": {
+                        "currency": "usd",
+                        "unit_amount": 1000,
+                        "recurring": {"interval": "month"},
+                        "product_data": {
+                            "name": "Code Guardian — Monthly (up to 3 users)",
+                            "description": "Up to 1,000,000 tokens / month, shared across 3 users.",
+                        },
+                    },
+                    "quantity": 1,
+                }],
+                success_url=f"{base}/billing/success?session_id={{CHECKOUT_SESSION_ID}}",
+                cancel_url=f"{base}/billing/cancel",
+                customer_email=user["email"],
+                metadata={
+                    "user_id": user["user_id"],
+                    "account_id": user["account_id"],
+                    "plan": "monthly",
+                },
+            )
+    except Exception as e:
+        logger.exception("Stripe checkout failed")
+        raise HTTPException(502, f"Stripe error: {e}")
+
+    # Persist so we can reconcile on the success page even if webhooks
+    # are slow.
+    await db.payments.insert_one({
+        "checkout_session_id": session.id,
+        "user_id": user["user_id"],
+        "account_id": user["account_id"],
+        "plan": body.plan,
+        "status": "pending",
+        "created_at": datetime.now(timezone.utc),
+    })
+    return {"url": session.url, "session_id": session.id}
+
+
+async def _apply_plan(account_id: str, plan: str, *, sub_id: Optional[str] = None,
+                      customer_id: Optional[str] = None, status: Optional[str] = None) -> None:
+    """Idempotent tier flip used by both the webhook handler and the
+    /billing/verify fallback. Keeps the state machine in one place."""
+    now = datetime.now(timezone.utc)
+    update: dict = {"updated_at": now}
+    if plan == "day_pass":
+        update.update({
+            "tier": "day_pass",
+            "day_pass_expires_at": now + timedelta(days=1),
+        })
+    elif plan == "monthly":
+        update.update({
+            "tier": "monthly",
+            "subscription_status": status or "active",
+            "seats_allowed": 3,
+        })
+        if sub_id:
+            update["stripe_subscription_id"] = sub_id
+        if customer_id:
+            update["stripe_customer_id"] = customer_id
+    await db.accounts.update_one({"account_id": account_id}, {"$set": update}, upsert=True)
+
+
+@app.post("/api/billing/webhook")
+async def billing_webhook(request: Request):
+    """Stripe webhook. Registered outside the api router so we can
+    consume the raw body before any JSON parsing happens."""
+    payload = await request.body()
+    sig = request.headers.get("stripe-signature", "")
+    try:
+        if STRIPE_WEBHOOK_SECRET:
+            event = stripe.Webhook.construct_event(payload, sig, STRIPE_WEBHOOK_SECRET)
+        else:
+            event = json.loads(payload.decode("utf-8"))  # dev/no-secret fallback
+    except Exception as e:
+        logger.warning("Stripe webhook signature error: %s", e)
+        raise HTTPException(400, "Bad signature")
+
+    # Dedupe replays.
+    event_id = event.get("id") if isinstance(event, dict) else event["id"]
+    if await db.stripe_events.find_one({"event_id": event_id}):
+        return {"ok": True, "duplicate": True}
+    await db.stripe_events.insert_one(
+        {"event_id": event_id, "received_at": datetime.now(timezone.utc)}
+    )
+
+    etype = event["type"] if isinstance(event, dict) else event.type
+    obj = (event["data"]["object"] if isinstance(event, dict)
+           else event.data.object)
+
+    if etype == "checkout.session.completed":
+        md = obj.get("metadata") or {}
+        account_id = md.get("account_id")
+        plan = md.get("plan")
+        if account_id and plan:
+            await _apply_plan(
+                account_id,
+                plan,
+                sub_id=obj.get("subscription"),
+                customer_id=obj.get("customer"),
+                status="active",
+            )
+            await db.payments.update_one(
+                {"checkout_session_id": obj.get("id")},
+                {"$set": {"status": "paid", "paid_at": datetime.now(timezone.utc)}},
+            )
+    elif etype in ("invoice.paid", "customer.subscription.updated"):
+        customer_id = obj.get("customer")
+        if customer_id:
+            await db.accounts.update_one(
+                {"stripe_customer_id": customer_id},
+                {"$set": {
+                    "subscription_status": obj.get("status", "active"),
+                    "updated_at": datetime.now(timezone.utc),
+                }},
+            )
+    elif etype in ("invoice.payment_failed", "customer.subscription.deleted"):
+        customer_id = obj.get("customer")
+        if customer_id:
+            await db.accounts.update_one(
+                {"stripe_customer_id": customer_id},
+                {"$set": {
+                    "tier": "free",
+                    "subscription_status": obj.get("status", "canceled"),
+                    "updated_at": datetime.now(timezone.utc),
+                }},
+            )
+    return {"ok": True}
+
+
+@api.get("/billing/verify")
+async def billing_verify(session_id: str, user=Depends(get_current_user)):
+    """Manual reconcile path used by the success screen. Looks up the
+    Stripe checkout session and applies the plan if it's paid but the
+    webhook hasn't landed yet."""
+    if not STRIPE_API_KEY:
+        raise HTTPException(500, "Stripe is not configured")
+    try:
+        sess = stripe.checkout.Session.retrieve(session_id)
+    except Exception as e:
+        raise HTTPException(502, f"Stripe: {e}")
+    paid = sess.payment_status == "paid" or sess.status == "complete"
+    md = sess.metadata or {}
+    if paid and md.get("account_id") == user["account_id"]:
+        await _apply_plan(
+            user["account_id"],
+            md.get("plan", "day_pass"),
+            sub_id=sess.subscription,
+            customer_id=sess.customer,
+            status="active",
+        )
+    return {"paid": bool(paid), "plan": md.get("plan")}
+
+
+# ---------- agents (static metadata for the UI) ----------
+@api.get("/agents")
+async def list_agents():
+    return {"agents": [
+        {"name": name, "system": system} for name, system in AGENT_SYSTEM.items()
+    ]}
+
+
+# ---------- mount + startup ----------
+app.include_router(api)
 
 app.add_middleware(
     CORSMiddleware,
@@ -63,13 +773,27 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
+
+@app.on_event("startup")
+async def on_startup():
+    # Indexes that matter for hot paths / TTL session cleanup.
+    await db.users.create_index("email", unique=True)
+    await db.users.create_index("user_id", unique=True)
+    await db.user_sessions.create_index("session_token", unique=True)
+    await db.user_sessions.create_index("expires_at", expireAfterSeconds=0)
+    await db.accounts.create_index("account_id", unique=True)
+    await db.accounts.create_index("stripe_customer_id")
+    await db.daily_usage.create_index([("user_id", 1), ("date", 1)], unique=True)
+    await db.monthly_usage.create_index([("account_id", 1), ("month", 1)], unique=True)
+    await db.scraped_content.create_index("url", unique=True)
+    await db.quizzes.create_index("quiz_id", unique=True)
+    await db.stripe_events.create_index("event_id", unique=True)
+    # Pre-seed scraping in the background — never blocks startup.
+    import asyncio
+    asyncio.create_task(preseed_all(db))
+    logger.info("Code Guardian API ready")
+
 
 @app.on_event("shutdown")
-async def shutdown_db_client():
-    client.close()
+async def on_shutdown():
+    mongo.close()

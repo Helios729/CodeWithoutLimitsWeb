@@ -1,30 +1,29 @@
-import { Text, View, StyleSheet, Image } from "react-native";
+import { Redirect } from "expo-router";
+import React from "react";
+import { ActivityIndicator, StyleSheet, View } from "react-native";
 
-const EXPO_PUBLIC_BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
+import { useAuth } from "@/src/context/AuthContext";
+import { colors } from "@/src/theme";
 
+// Single entry router: pushes the user to the right place once we know
+// their auth state. Loading shows a quick splash instead of flashing.
 export default function Index() {
-  console.log(EXPO_PUBLIC_BACKEND_URL, "EXPO_PUBLIC_BACKEND_URL");
-
-  return (
-    <View style={styles.container}>
-      <Image
-        source={require("../assets/images/app-image.png")}
-        style={styles.image}
-      />
-    </View>
-  );
+  const { user, loading } = useAuth();
+  if (loading) {
+    return (
+      <View style={styles.center} testID="splash-loading">
+        <ActivityIndicator color={colors.brand} size="large" />
+      </View>
+    );
+  }
+  return <Redirect href={user ? "/(tabs)/home" : "/welcome"} />;
 }
 
 const styles = StyleSheet.create({
-  container: {
+  center: {
     flex: 1,
-    backgroundColor: "#0c0c0c",
     alignItems: "center",
     justifyContent: "center",
-  },
-  image: {
-    width: "100%",
-    height: "100%",
-    resizeMode: "contain",
+    backgroundColor: colors.bg,
   },
 });
