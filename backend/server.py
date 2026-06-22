@@ -339,21 +339,41 @@ async def _run_gemini(
     """Single place where we actually call Gemini. The caller is
     responsible for having already passed assert_can_call() (or, for
     free-tier BYOK, having validated that api_key is non-empty).
-    If api_key is provided we use it instead of the platform key —
-    that's how BYOK free tier works (zero platform cost)."""
+
+    If api_key is provided we use it instead of the platform key — that's
+    how BYOK free tier works (zero platform cost). BYOK calls auto-fall-back
+    to gemini-2.5-flash because gemini-2.5-pro is not in Google's free tier
+    (free-tier-only personal keys would otherwise always 429).
+    """
     key = api_key or EMERGENT_LLM_KEY
     if not key:
         raise HTTPException(500, "No LLM key available")
+    model = "gemini-2.5-flash" if api_key else GEMINI_MODEL
     chat = (
         LlmChat(
             api_key=key,
             session_id=f"sess_{uuid.uuid4().hex[:10]}",
             system_message=system,
         )
-        .with_model("gemini", GEMINI_MODEL)
+        .with_model("gemini", model)
     )
     msg = UserMessage(text=user_msg)
-    text = await chat.send_message(msg)
+    try:
+        text = await chat.send_message(msg)
+    except Exception as e:
+        # Surface a clean, actionable error instead of a raw 500.
+        err = str(e)
+        if "RESOURCE_EXHAUSTED" in err or "quota" in err.lower() or "rate" in err.lower():
+            raise HTTPException(
+                429,
+                "Gemini rate limit hit. Personal (free-tier) keys only support gemini-2.5-flash with low rate limits — wait a minute and retry, or enable billing in Google AI Studio.",
+            )
+        if "API key not valid" in err or "API_KEY_INVALID" in err:
+            raise HTTPException(
+                401,
+                "That Gemini API key was rejected by Google. Double-check it at https://aistudio.google.com/app/apikey.",
+            )
+        raise HTTPException(502, f"Gemini call failed: {err[:300]}")
     # Pull usage out of the chat object's last response if available.
     tokens = _extract_usage_tokens(chat, (text or "") + system + user_msg)
     return text or "", tokens

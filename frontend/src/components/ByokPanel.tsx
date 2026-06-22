@@ -55,8 +55,9 @@ export default function ByokPanel({
       </View>
       <Text style={styles.body}>
         Free learners run on their own Google Gemini key — the platform spends
-        $0. Your key stays on this device and is sent only inside a single AI
-        request, never logged or stored on our servers.
+        $0. Calls automatically use gemini-2.5-flash (the only model in Google's
+        free tier). Your key stays on this device and is sent only inside a single
+        AI request, never logged or stored on our servers.
       </Text>
 
       <View style={styles.inputRow}>
