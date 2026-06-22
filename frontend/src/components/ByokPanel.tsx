@@ -51,13 +51,13 @@ export default function ByokPanel({
     <View style={styles.card} testID="byok-panel">
       <View style={styles.headerRow}>
         <Ionicons name="key-outline" size={18} color={colors.brand} />
-        <Text style={styles.title}>Bring your own Gemini key (Free tier)</Text>
+        <Text style={styles.title}>Optional: use your own Gemini key</Text>
       </View>
       <Text style={styles.body}>
-        Free learners run on their own Google Gemini key — the platform spends
-        $0. Calls automatically use gemini-2.5-flash (the only model in Google's
-        free tier). Your key stays on this device and is sent only inside a single
-        AI request, never logged or stored on our servers.
+        Power users only — paste your own Google Gemini key to skip the
+        5-prompt daily limit and run unlimited Flash calls on your own quota.
+        Your key stays on this device and is sent only inside a single AI
+        request, never logged or stored on our servers.
       </Text>
 
       <View style={styles.inputRow}>

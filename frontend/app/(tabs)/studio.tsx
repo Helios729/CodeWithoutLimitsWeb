@@ -130,22 +130,20 @@ export default function Studio() {
           <TouchableOpacity
             style={[
               styles.primaryBtn,
-              (loading || usage?.blocked || (isFree && !byokKey)) && styles.disabled,
+              (loading || usage?.blocked) && styles.disabled,
             ]}
             onPress={send}
-            disabled={loading || !!usage?.blocked || (isFree && !byokKey)}
+            disabled={loading || !!usage?.blocked}
             testID="submit-prompt-button"
           >
             <Ionicons name="sparkles" size={18} color="#fff" />
             <Text style={styles.primaryBtnText}>
-              {loading
-                ? "Thinking…"
-                : isFree
-                  ? "Run with your Gemini key"
-                  : "Run with Gemini 2.5 Pro"}
+              {loading ? "Thinking…" : "Run with Gemini"}
             </Text>
           </TouchableOpacity>
 
+          {/* BYOK is now optional — power users who want unlimited Flash on
+              their own key can paste it. Hidden by default. */}
           {isFree ? <ByokPanel onKeyChange={setByok} /> : null}
 
           {usage?.blocked ? (

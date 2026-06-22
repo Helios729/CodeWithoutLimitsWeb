@@ -31,8 +31,9 @@ const TIERS: {
     price: "$0",
     perks: [
       "All learning modules + agents",
-      "AI runs on your own Google Gemini key",
-      "Zero platform cost",
+      "5 AI prompts every day — platform-paid",
+      "No credit card, no key needed",
+      "Built for low-income learners worldwide",
     ],
     testID: "tier-free-btn",
   },
@@ -180,7 +181,7 @@ export default function Account() {
                 {busy === tier.key
                   ? "Opening Stripe…"
                   : tier.key === "free"
-                    ? "Set up your key"
+                    ? "Current plan"
                     : `Get ${tier.title}`}
               </Text>
             </TouchableOpacity>

@@ -22,6 +22,8 @@ from datetime import datetime, timezone, timedelta
 from dataclasses import dataclass
 
 
+FREE_DAILY_PROMPT_CAP = 5
+FREE_DAILY_TOKEN_CAP = 50_000
 DAY_PASS_PROMPT_CAP = 6
 DAY_PASS_TOKEN_CAP = 450_000
 MONTHLY_TOKEN_CAP = 1_000_000
@@ -102,11 +104,21 @@ async def snapshot(db, user_id: str, account_id: str) -> QuotaSnapshot:
     reason = ""
 
     if tier == "free":
-        # Free tier is BYOK: not blocked, but the caller MUST supply a key
-        # at request time. The /ai/chat and /quiz/generate routes check
-        # this separately and short-circuit before charging quota.
-        blocked = False
-        reason = ""
+        # Platform-paid free tier: 5 prompts / 50k tokens per learner per day.
+        # When the cap is hit, we block and surface a friendly upgrade message.
+        if daily.get("prompts", 0) >= FREE_DAILY_PROMPT_CAP:
+            blocked = True
+            reason = (
+                f"You've used your {FREE_DAILY_PROMPT_CAP} free prompts for today. "
+                "Your free access resets tomorrow at 00:00 UTC — or upgrade to a "
+                "Day Pass ($3) for more."
+            )
+        elif daily.get("tokens", 0) >= FREE_DAILY_TOKEN_CAP:
+            blocked = True
+            reason = (
+                "You've reached today's free token limit. Resets tomorrow, or "
+                "upgrade to a Day Pass ($3) for more."
+            )
     elif tier == "day_pass":
         if daily.get("prompts", 0) >= DAY_PASS_PROMPT_CAP:
             blocked = True
@@ -131,8 +143,16 @@ async def snapshot(db, user_id: str, account_id: str) -> QuotaSnapshot:
         tier=tier,
         daily_prompts_used=daily.get("prompts", 0),
         daily_tokens_used=daily.get("tokens", 0),
-        daily_prompts_cap=DAY_PASS_PROMPT_CAP if tier == "day_pass" else 0,
-        daily_tokens_cap=DAY_PASS_TOKEN_CAP if tier == "day_pass" else 0,
+        daily_prompts_cap=(
+            FREE_DAILY_PROMPT_CAP if tier == "free"
+            else DAY_PASS_PROMPT_CAP if tier == "day_pass"
+            else 0
+        ),
+        daily_tokens_cap=(
+            FREE_DAILY_TOKEN_CAP if tier == "free"
+            else DAY_PASS_TOKEN_CAP if tier == "day_pass"
+            else 0
+        ),
         monthly_tokens_used=monthly.get("tokens", 0),
         monthly_tokens_cap=MONTHLY_TOKEN_CAP if tier == "monthly" else 0,
         blocked=blocked,

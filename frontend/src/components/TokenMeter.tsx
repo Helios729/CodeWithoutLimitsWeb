@@ -19,23 +19,26 @@ export default function TokenMeter() {
   let label = "";
   let pct = 0;
 
-  if (usage.tier === "day_pass") {
-    const tokenLeft = Math.max(0, usage.daily_tokens_cap - usage.daily_tokens_used);
-    const promptLeft = Math.max(0, usage.daily_prompts_cap - usage.daily_prompts_used);
-    label = `${promptLeft}/${usage.daily_prompts_cap} prompts · ${Math.round(
-      tokenLeft / 1000,
-    )}k tok`;
+  if (usage.tier === "day_pass" || usage.tier === "free") {
+    const cap = usage.daily_prompts_cap || 1;
+    const used = usage.daily_prompts_used || 0;
+    const left = Math.max(0, cap - used);
+    label =
+      usage.tier === "free"
+        ? `${left}/${cap} free prompts today`
+        : `${left}/${cap} prompts · ${Math.round(
+            Math.max(0, usage.daily_tokens_cap - usage.daily_tokens_used) / 1000,
+          )}k tok`;
     pct = Math.min(
-      (usage.daily_prompts_used / Math.max(1, usage.daily_prompts_cap)) * 100,
-      (usage.daily_tokens_used / Math.max(1, usage.daily_tokens_cap)) * 100,
+      (used / Math.max(1, cap)) * 100,
+      (usage.daily_tokens_used / Math.max(1, usage.daily_tokens_cap || 1)) * 100,
     );
   } else if (usage.tier === "monthly") {
     const left = Math.max(0, usage.monthly_tokens_cap - usage.monthly_tokens_used);
     label = `${Math.round(left / 1000)}k / ${Math.round(usage.monthly_tokens_cap / 1000)}k tok`;
     pct = (usage.monthly_tokens_used / Math.max(1, usage.monthly_tokens_cap)) * 100;
   } else {
-    // Free tier == bring-your-own-key. No platform tokens metered.
-    label = "Free · BYOK";
+    label = "Free";
     pct = 0;
   }
 

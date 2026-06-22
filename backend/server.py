@@ -414,19 +414,11 @@ async def quiz_generate(body: QuizGenerateIn, user=Depends(get_current_user)):
     """Generate exactly 10 MCQs from the scraped sources for the topic.
     Quota is checked BEFORE the LLM call and recorded AFTER, using the
     real usage returned by the model."""
-    # BYOK path: free tier passes their own Gemini key. We skip the
-    # platform quota counter entirely (cost is on them) and never persist
-    # the key — it lives only inside this function call.
-    snap = await snapshot(db, user["user_id"], user["account_id"])
-    using_byok = snap.tier == "free"
-    if using_byok and not (body.byok_key and body.byok_key.strip()):
-        return JSONResponse(
-            {
-                "error": "byok_required",
-                "message": "Free tier: paste your own Gemini API key to run this quiz, or upgrade for a platform budget.",
-            },
-            status_code=402,
-        )
+    # Quota path: free tier now gets 5 platform-paid prompts/day so learners
+    # in low-income contexts can use the app with zero setup. BYOK is still
+    # honored as an opt-in (power users who provide their own key skip the
+    # platform quota entirely).
+    using_byok = bool(body.byok_key and body.byok_key.strip())
     if not using_byok:
         try:
             await assert_can_call(db, user["user_id"], user["account_id"])
@@ -606,16 +598,7 @@ AGENT_SYSTEM = {
 
 @api.post("/ai/chat")
 async def ai_chat(body: ChatIn, user=Depends(get_current_user)):
-    snap = await snapshot(db, user["user_id"], user["account_id"])
-    using_byok = snap.tier == "free"
-    if using_byok and not (body.byok_key and body.byok_key.strip()):
-        return JSONResponse(
-            {
-                "error": "byok_required",
-                "message": "Free tier: paste your own Gemini API key to run this prompt, or upgrade for a platform budget.",
-            },
-            status_code=402,
-        )
+    using_byok = bool(body.byok_key and body.byok_key.strip())
     if not using_byok:
         try:
             await assert_can_call(db, user["user_id"], user["account_id"])

@@ -1,8 +1,14 @@
-"""End-to-end backend tests for Code Guardian (BYOK iteration).
+"""End-to-end backend tests for Code Without Limits (platform-paid free-tier iteration).
 
-Covers: health, content catalog, auth enforcement, usage snapshot, BYOK
-free-tier behavior (402 on missing key, quota counters NOT incremented),
-quota gating (day_pass + monthly), quiz lifecycle, chat, Stripe checkout.
+NEW free-tier behavior under test:
+- Free tier gets 5 platform-paid prompts/day and 50,000 tokens/day.
+- /api/usage/me reports tier='free', daily_prompts_cap=5, daily_tokens_cap=50000, blocked=False.
+- POST /api/ai/chat as free user (no byok_key) SUCCEEDS using platform key and
+  increments daily_usage.prompts by 1.
+- 6th call after 5 successful calls returns 429 with 'free prompts' in message.
+- POST /api/quiz/generate as free user behaves identically.
+- BYOK calls (byok_key supplied) NEVER increment daily_usage counters.
+- Day-pass and monthly tier caps unchanged.
 """
 import pytest
 from tests.conftest import BASE_URL, auth_headers
@@ -43,8 +49,19 @@ class TestAuthGating:
         assert r.status_code == 401
 
 
-# ---------- usage/me with seeded session ----------
+# ---------- /api/usage/me snapshots ----------
 class TestUsageMe:
+    def test_usage_me_free_tier_new_caps(self, api_client, seed_user):
+        """NEW: free tier has its own 5 prompts / 50k tokens daily budget."""
+        u = seed_user("free")
+        r = api_client.get(f"{BASE_URL}/api/usage/me", headers=auth_headers(u["token"]))
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert body["tier"] == "free"
+        assert body["daily_prompts_cap"] == 5, f"expected 5 free prompts/day, got {body}"
+        assert body["daily_tokens_cap"] == 50000, f"expected 50000 free tokens/day, got {body}"
+        assert body["blocked"] is False, f"fresh free user must NOT be blocked, got {body}"
+
     def test_usage_me_day_pass_caps(self, api_client, seed_user):
         u = seed_user("day_pass")
         r = api_client.get(f"{BASE_URL}/api/usage/me", headers=auth_headers(u["token"]))
@@ -55,72 +72,123 @@ class TestUsageMe:
         assert body["daily_tokens_cap"] == 450000
         assert body["blocked"] is False
 
-    def test_usage_me_free_unblocked_byok(self, api_client, seed_user):
-        """BYOK regression: free tier must now be unblocked (was blocked=true before)."""
-        u = seed_user("free")
+    def test_usage_me_monthly_caps(self, api_client, seed_user):
+        u = seed_user("monthly")
         r = api_client.get(f"{BASE_URL}/api/usage/me", headers=auth_headers(u["token"]))
         assert r.status_code == 200
         body = r.json()
-        assert body["tier"] == "free"
-        assert body["blocked"] is False, f"Free tier must NOT be blocked under BYOK. Got body={body}"
+        assert body["tier"] == "monthly"
+        assert body["monthly_tokens_cap"] == 1_000_000
 
 
-# ---------- BYOK free-tier behavior ----------
-class TestByokFreeTier:
-    def test_chat_free_no_byok_returns_402(self, api_client, seed_user, db):
+# ---------- platform-paid free-tier behavior (real Gemini calls) ----------
+@pytest.mark.timeout(180)
+class TestFreeTierPlatformPaid:
+    def test_chat_free_no_byok_succeeds_and_increments(self, api_client, seed_user, db):
+        """NEW: free user without BYOK should succeed via platform key,
+        with tokens_charged > 0 and daily_usage.prompts == 1 after the call."""
         u = seed_user("free")
+        r = api_client.post(
+            f"{BASE_URL}/api/ai/chat",
+            json={"message": "In one short sentence: what is AI?"},
+            headers=auth_headers(u["token"]),
+            timeout=90,
+        )
+        assert r.status_code == 200, f"free user should succeed via platform key, got {r.status_code}: {r.text[:300]}"
+        body = r.json()
+        assert isinstance(body.get("reply"), str) and len(body["reply"]) > 0
+        assert body.get("byok") is False
+        assert body.get("tokens_charged", 0) > 0, f"platform call must charge tokens, got {body}"
+
+        daily = db.daily_usage.find_one({"user_id": u["user_id"]})
+        assert daily is not None, "daily_usage row must be created"
+        assert daily.get("prompts", 0) == 1, f"expected prompts=1, got {daily}"
+        assert daily.get("tokens", 0) > 0
+
+    def test_chat_free_6th_call_returns_429_quota_exceeded(self, api_client, seed_user, db):
+        """Seed daily_usage at 5 prompts so the very next free call must 429
+        with 'free prompts' in the message (we avoid burning 5 real Gemini calls)."""
+        u = seed_user("free", daily_prompts=5, daily_tokens=100)
         r = api_client.post(
             f"{BASE_URL}/api/ai/chat",
             json={"message": "hello"},
             headers=auth_headers(u["token"]),
         )
-        assert r.status_code == 402, f"expected 402 got {r.status_code} body={r.text}"
+        assert r.status_code == 429, r.text
         body = r.json()
-        assert body.get("error") == "byok_required"
-        assert "key" in body.get("message", "").lower()
-        # Verify quota counters NOT incremented
-        daily = db.daily_usage.find_one({"user_id": u["user_id"]})
-        assert daily is None or daily.get("prompts", 0) == 0, "BYOK 402 must NOT touch daily_usage"
+        assert body.get("error") == "quota_exceeded"
+        assert "free prompts" in body.get("message", "").lower(), (
+            f"message should mention 'free prompts', got: {body.get('message')}"
+        )
 
-    def test_quiz_free_no_byok_returns_402(self, api_client, seed_user, db):
-        u = seed_user("free")
+    def test_quiz_free_at_cap_returns_429(self, api_client, seed_user):
+        """5 prompts already used → quiz generate must 429."""
+        u = seed_user("free", daily_prompts=5)
         r = api_client.post(
             f"{BASE_URL}/api/quiz/generate",
             json={"topic_id": "intro-ai"},
             headers=auth_headers(u["token"]),
         )
-        assert r.status_code == 402
-        body = r.json()
-        assert body.get("error") == "byok_required"
-        daily = db.daily_usage.find_one({"user_id": u["user_id"]})
-        assert daily is None or daily.get("prompts", 0) == 0
+        assert r.status_code == 429, r.text
+        assert r.json().get("error") == "quota_exceeded"
 
-    def test_chat_free_with_invalid_byok_does_not_touch_quota(
-        self, api_client, seed_user, db
-    ):
-        """Invalid Gemini key → upstream LLM fails → 4xx/5xx, but platform
-        quota counters MUST remain 0 (BYOK never charges platform)."""
+    def test_chat_free_at_token_cap_returns_429(self, api_client, seed_user):
+        u = seed_user("free", daily_prompts=1, daily_tokens=50000)
+        r = api_client.post(
+            f"{BASE_URL}/api/ai/chat",
+            json={"message": "hi"},
+            headers=auth_headers(u["token"]),
+        )
+        assert r.status_code == 429
+        assert r.json().get("error") == "quota_exceeded"
+
+
+# ---------- BYOK opt-in: counters must NOT increment ----------
+class TestByokOptIn:
+    def test_chat_free_with_byok_does_not_touch_quota(self, api_client, seed_user, db):
+        """BYOK calls go directly to Google with the user's key. Even when
+        Google rejects the key (4xx), platform daily/monthly counters must
+        stay at 0 because BYOK never charges the platform."""
         u = seed_user("free")
         r = api_client.post(
             f"{BASE_URL}/api/ai/chat",
-            json={"message": "hello", "byok_key": "AIza_invalid_test_key"},
+            json={"message": "hello", "byok_key": "AIza_fake_key"},
             headers=auth_headers(u["token"]),
             timeout=60,
         )
-        # Either upstream error code or 200 — what matters is no quota
+        # Upstream will reject the fake key — could be 401/429/502.
         assert r.status_code >= 400, (
-            f"invalid BYOK key should cause an upstream failure, got {r.status_code}: {r.text[:300]}"
+            f"fake BYOK key should fail upstream, got {r.status_code}: {r.text[:300]}"
         )
         daily = db.daily_usage.find_one({"user_id": u["user_id"]})
         assert daily is None or daily.get("prompts", 0) == 0, (
-            f"BYOK invalid-key path must NOT increment platform quota. daily_usage={daily}"
+            f"BYOK call must NOT increment daily_usage. Got: {daily}"
         )
         monthly = db.monthly_usage.find_one({"account_id": u["account_id"]})
         assert monthly is None or monthly.get("tokens", 0) == 0
 
+    def test_chat_with_byok_works_even_when_quota_exhausted(self, api_client, seed_user, db):
+        """Quota-exhausted free user should still be able to use their own key —
+        BYOK bypasses the platform gate entirely."""
+        u = seed_user("free", daily_prompts=5, daily_tokens=50000)
+        r = api_client.post(
+            f"{BASE_URL}/api/ai/chat",
+            json={"message": "hi", "byok_key": "AIza_fake_key"},
+            headers=auth_headers(u["token"]),
+            timeout=60,
+        )
+        # Must NOT be 429 (quota_exceeded). May fail upstream (4xx/5xx).
+        if r.status_code == 429:
+            assert r.json().get("error") != "quota_exceeded", (
+                f"BYOK call must NEVER hit platform quota gate, got: {r.text}"
+            )
+        # Counters must still not have moved.
+        daily = db.daily_usage.find_one({"user_id": u["user_id"]})
+        assert daily is None or daily.get("prompts", 0) == 5  # unchanged from seed
+
 
 # ---------- paid tier quota regression ----------
-class TestQuotaEnforcement:
+class TestPaidTierQuota:
     def test_day_pass_at_prompt_cap_blocks(self, api_client, seed_user):
         u = seed_user("day_pass", daily_prompts=6, daily_tokens=10)
         r = api_client.post(
@@ -149,16 +217,18 @@ class TestQuotaEnforcement:
         )
         assert r.status_code == 429
 
-    def test_day_pass_expired_downgrades_to_free_unblocked(self, api_client, seed_user):
+    def test_day_pass_expired_downgrades_to_free(self, api_client, seed_user):
         u = seed_user("day_pass", day_pass_expired=True)
         r = api_client.get(f"{BASE_URL}/api/usage/me", headers=auth_headers(u["token"]))
         assert r.status_code == 200
-        assert r.json()["tier"] == "free"
-        # BYOK regression: expired day_pass → free → blocked=False now
-        assert r.json()["blocked"] is False
+        body = r.json()
+        assert body["tier"] == "free"
+        # After downgrade, fresh free user gets new caps and is unblocked.
+        assert body["daily_prompts_cap"] == 5
+        assert body["blocked"] is False
 
 
-# ---------- LLM-backed paid flows (real Gemini calls) ----------
+# ---------- paid LLM smoke ----------
 @pytest.mark.timeout(180)
 class TestPaidLLMFlows:
     def test_day_pass_chat_increments_quota(self, api_client, seed_user, db):
@@ -174,14 +244,13 @@ class TestPaidLLMFlows:
         assert isinstance(body.get("reply"), str) and len(body["reply"]) > 0
         assert body.get("tokens_charged", 0) > 0
         assert body.get("byok") is False
-        # Quota MUST have incremented by exactly 1 prompt for day_pass paid call
         daily = db.daily_usage.find_one({"user_id": u["user_id"]})
         assert daily is not None
         assert daily.get("prompts", 0) == 1
         assert daily.get("tokens", 0) > 0
 
 
-# ---------- Stripe checkout (verify URL only) ----------
+# ---------- Stripe checkout (URL only) ----------
 class TestBillingCheckout:
     def test_day_pass_checkout_returns_stripe_url(self, api_client, seed_user):
         u = seed_user("free")
