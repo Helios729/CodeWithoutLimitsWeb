@@ -100,6 +100,9 @@ class UsageOut(BaseModel):
 
 class QuizGenerateIn(BaseModel):
     topic_id: str
+    # Free tier: learner pastes their own Gemini key for this single call.
+    # Never stored — passed straight into emergentintegrations and discarded.
+    byok_key: Optional[str] = None
 
 
 class QuizSubmitIn(BaseModel):
@@ -110,6 +113,7 @@ class QuizSubmitIn(BaseModel):
 class ChatIn(BaseModel):
     message: str
     agent: Optional[str] = "OER AI Tutor Agent"
+    byok_key: Optional[str] = None  # free-tier bring-your-own-key, never stored
 
 
 class CheckoutIn(BaseModel):
@@ -329,14 +333,20 @@ def _extract_usage_tokens(chat: LlmChat, fallback_text: str) -> int:
     return max(1, len(fallback_text) // 4)
 
 
-async def _run_gemini(*, system: str, user_msg: str) -> tuple[str, int]:
+async def _run_gemini(
+    *, system: str, user_msg: str, api_key: Optional[str] = None
+) -> tuple[str, int]:
     """Single place where we actually call Gemini. The caller is
-    responsible for having already passed assert_can_call()."""
-    if not EMERGENT_LLM_KEY:
-        raise HTTPException(500, "EMERGENT_LLM_KEY not configured")
+    responsible for having already passed assert_can_call() (or, for
+    free-tier BYOK, having validated that api_key is non-empty).
+    If api_key is provided we use it instead of the platform key —
+    that's how BYOK free tier works (zero platform cost)."""
+    key = api_key or EMERGENT_LLM_KEY
+    if not key:
+        raise HTTPException(500, "No LLM key available")
     chat = (
         LlmChat(
-            api_key=EMERGENT_LLM_KEY,
+            api_key=key,
             session_id=f"sess_{uuid.uuid4().hex[:10]}",
             system_message=system,
         )
@@ -384,10 +394,26 @@ async def quiz_generate(body: QuizGenerateIn, user=Depends(get_current_user)):
     """Generate exactly 10 MCQs from the scraped sources for the topic.
     Quota is checked BEFORE the LLM call and recorded AFTER, using the
     real usage returned by the model."""
-    try:
-        await assert_can_call(db, user["user_id"], user["account_id"])
-    except ValueError as e:
-        return JSONResponse({"error": "quota_exceeded", "message": str(e)}, status_code=429)
+    # BYOK path: free tier passes their own Gemini key. We skip the
+    # platform quota counter entirely (cost is on them) and never persist
+    # the key — it lives only inside this function call.
+    snap = await snapshot(db, user["user_id"], user["account_id"])
+    using_byok = snap.tier == "free"
+    if using_byok and not (body.byok_key and body.byok_key.strip()):
+        return JSONResponse(
+            {
+                "error": "byok_required",
+                "message": "Free tier: paste your own Gemini API key to run this quiz, or upgrade for a platform budget.",
+            },
+            status_code=402,
+        )
+    if not using_byok:
+        try:
+            await assert_can_call(db, user["user_id"], user["account_id"])
+        except ValueError as e:
+            return JSONResponse(
+                {"error": "quota_exceeded", "message": str(e)}, status_code=429
+            )
 
     topic = get_topic(body.topic_id)
     if not topic:
@@ -427,10 +453,20 @@ Rules:
 - source_index is 1-based and refers to which [Source #N] block supports the question.
 - Do not include markdown fences.
 """
-    text, tokens = await _run_gemini(system=QUIZ_SYSTEM_PROMPT, user_msg=user_prompt)
-    await record_usage(
-        db, user_id=user["user_id"], account_id=user["account_id"], tokens=tokens, kind="quiz"
+    text, tokens = await _run_gemini(
+        system=QUIZ_SYSTEM_PROMPT,
+        user_msg=user_prompt,
+        api_key=(body.byok_key.strip() if using_byok else None),
     )
+    # Only charge the platform quota if we actually used the platform key.
+    if not using_byok:
+        await record_usage(
+            db,
+            user_id=user["user_id"],
+            account_id=user["account_id"],
+            tokens=tokens,
+            kind="quiz",
+        )
     raw_questions = _parse_quiz_json(text)
     # Force exactly 10 (truncate / pad-fail).
     if len(raw_questions) < 10:
@@ -550,17 +586,44 @@ AGENT_SYSTEM = {
 
 @api.post("/ai/chat")
 async def ai_chat(body: ChatIn, user=Depends(get_current_user)):
-    try:
-        await assert_can_call(db, user["user_id"], user["account_id"])
-    except ValueError as e:
-        return JSONResponse({"error": "quota_exceeded", "message": str(e)}, status_code=429)
+    snap = await snapshot(db, user["user_id"], user["account_id"])
+    using_byok = snap.tier == "free"
+    if using_byok and not (body.byok_key and body.byok_key.strip()):
+        return JSONResponse(
+            {
+                "error": "byok_required",
+                "message": "Free tier: paste your own Gemini API key to run this prompt, or upgrade for a platform budget.",
+            },
+            status_code=402,
+        )
+    if not using_byok:
+        try:
+            await assert_can_call(db, user["user_id"], user["account_id"])
+        except ValueError as e:
+            return JSONResponse(
+                {"error": "quota_exceeded", "message": str(e)}, status_code=429
+            )
 
     system = AGENT_SYSTEM.get(body.agent or "", AGENT_SYSTEM["OER AI Tutor Agent"])
-    text, tokens = await _run_gemini(system=system, user_msg=body.message)
-    await record_usage(
-        db, user_id=user["user_id"], account_id=user["account_id"], tokens=tokens, kind="chat"
+    text, tokens = await _run_gemini(
+        system=system,
+        user_msg=body.message,
+        api_key=(body.byok_key.strip() if using_byok else None),
     )
-    return {"reply": text, "tokens_charged": tokens, "agent": body.agent}
+    if not using_byok:
+        await record_usage(
+            db,
+            user_id=user["user_id"],
+            account_id=user["account_id"],
+            tokens=tokens,
+            kind="chat",
+        )
+    return {
+        "reply": text,
+        "tokens_charged": 0 if using_byok else tokens,
+        "agent": body.agent,
+        "byok": using_byok,
+    }
 
 
 # ---------- routes: billing ----------

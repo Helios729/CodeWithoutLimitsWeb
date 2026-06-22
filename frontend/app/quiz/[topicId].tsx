@@ -14,6 +14,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useAuth } from "@/src/context/AuthContext";
 import { api, unwrap } from "@/src/lib/api";
+import { getByokKey } from "@/src/lib/byok";
 import { colors, radius, spacing } from "@/src/theme";
 
 type Source = { url: string; institution: string; title?: string };
@@ -51,7 +52,11 @@ export default function QuizRunner() {
       setLoading(true);
       setError("");
       try {
-        const { data } = await api.post("/quiz/generate", { topic_id: topicId });
+        // Free-tier learners need to send their own Gemini key with the request.
+        const byok = await getByokKey();
+        const payload: any = { topic_id: topicId };
+        if (byok) payload.byok_key = byok;
+        const { data } = await api.post("/quiz/generate", payload);
         if (cancelled) return;
         setQuizId(data.quiz_id);
         setTopicTitle(data.topic_title);
@@ -61,7 +66,13 @@ export default function QuizRunner() {
         await refreshUsage();
       } catch (e) {
         const u = unwrap(e);
-        setError(u.message || "Could not load quiz.");
+        if (u.status === 402) {
+          setError(
+            "Free tier: open the Studio tab, paste your Google Gemini key, then come back to start a quiz.",
+          );
+        } else {
+          setError(u.message || "Could not load quiz.");
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }

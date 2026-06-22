@@ -14,8 +14,10 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import TokenMeter from "@/src/components/TokenMeter";
+import ByokPanel from "@/src/components/ByokPanel";
 import { useAuth } from "@/src/context/AuthContext";
 import { api, unwrap } from "@/src/lib/api";
+import { getByokKey } from "@/src/lib/byok";
 import { colors, radius, spacing } from "@/src/theme";
 
 type Agent = { name: string; system: string };
@@ -39,22 +41,33 @@ export default function Studio() {
       .catch(() => {});
   }, []);
 
+  const [byokKey, setByok] = useState("");
+  const isFree = usage?.tier === "free";
+
+  useEffect(() => {
+    getByokKey().then(setByok);
+  }, []);
+
   async function send() {
     setError("");
     setReply("");
     setTokens(null);
     setLoading(true);
     try {
+      const payload: any = { message, agent };
+      // Free tier: include BYOK key if we have one (avoids the 402 round-trip).
+      if (isFree && byokKey) payload.byok_key = byokKey;
       const { data } = await api.post<{ reply: string; tokens_charged: number }>(
         "/ai/chat",
-        { message, agent },
+        payload,
       );
       setReply(data.reply);
       setTokens(data.tokens_charged);
       await refreshUsage();
     } catch (e) {
       const u = unwrap(e);
-      if (u.status === 429) setError(u.message);
+      if (u.status === 402) setError(u.message || "Paste your Gemini key below to run on the free tier.");
+      else if (u.status === 429) setError(u.message);
       else setError(u.message || "AI call failed.");
     } finally {
       setLoading(false);
@@ -115,16 +128,25 @@ export default function Studio() {
           />
 
           <TouchableOpacity
-            style={[styles.primaryBtn, (loading || usage?.blocked) && styles.disabled]}
+            style={[
+              styles.primaryBtn,
+              (loading || usage?.blocked || (isFree && !byokKey)) && styles.disabled,
+            ]}
             onPress={send}
-            disabled={loading || !!usage?.blocked}
+            disabled={loading || !!usage?.blocked || (isFree && !byokKey)}
             testID="submit-prompt-button"
           >
             <Ionicons name="sparkles" size={18} color="#fff" />
             <Text style={styles.primaryBtnText}>
-              {loading ? "Thinking…" : "Run with Gemini 2.5 Pro"}
+              {loading
+                ? "Thinking…"
+                : isFree
+                  ? "Run with your Gemini key"
+                  : "Run with Gemini 2.5 Pro"}
             </Text>
           </TouchableOpacity>
+
+          {isFree ? <ByokPanel onKeyChange={setByok} /> : null}
 
           {usage?.blocked ? (
             <Text style={styles.note} testID="studio-quota-note">

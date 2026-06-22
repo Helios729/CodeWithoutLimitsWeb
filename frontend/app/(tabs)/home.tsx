@@ -76,6 +76,20 @@ export default function Home() {
               <Text style={styles.alertBtnText}>Upgrade</Text>
             </TouchableOpacity>
           </View>
+        ) : usage?.tier === "free" ? (
+          <View style={styles.alert} testID="byok-banner">
+            <Ionicons name="key-outline" size={20} color={colors.brand} />
+            <Text style={styles.alertText}>
+              Free tier: paste your own Google Gemini key in the Studio to run AI prompts at zero platform cost.
+            </Text>
+            <TouchableOpacity
+              style={styles.alertBtn}
+              onPress={() => router.push("/(tabs)/studio")}
+              testID="home-byok-btn"
+            >
+              <Text style={styles.alertBtnText}>Set key</Text>
+            </TouchableOpacity>
+          </View>
         ) : null}
 
         <TouchableOpacity

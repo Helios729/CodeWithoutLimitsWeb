@@ -34,7 +34,9 @@ export default function TokenMeter() {
     label = `${Math.round(left / 1000)}k / ${Math.round(usage.monthly_tokens_cap / 1000)}k tok`;
     pct = (usage.monthly_tokens_used / Math.max(1, usage.monthly_tokens_cap)) * 100;
   } else {
-    label = "Free — upgrade for AI";
+    // Free tier == bring-your-own-key. No platform tokens metered.
+    label = "Free · BYOK";
+    pct = 0;
   }
 
   pct = Math.max(0, Math.min(100, pct));

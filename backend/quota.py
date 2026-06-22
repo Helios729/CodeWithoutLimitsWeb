@@ -102,8 +102,11 @@ async def snapshot(db, user_id: str, account_id: str) -> QuotaSnapshot:
     reason = ""
 
     if tier == "free":
-        blocked = True
-        reason = "Upgrade to a Day Pass ($3) or Monthly Plan ($10) to run AI prompts."
+        # Free tier is BYOK: not blocked, but the caller MUST supply a key
+        # at request time. The /ai/chat and /quiz/generate routes check
+        # this separately and short-circuit before charging quota.
+        blocked = False
+        reason = ""
     elif tier == "day_pass":
         if daily.get("prompts", 0) >= DAY_PASS_PROMPT_CAP:
             blocked = True

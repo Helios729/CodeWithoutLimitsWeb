@@ -18,13 +18,24 @@ import { api, unwrap } from "@/src/lib/api";
 import { colors, radius, spacing } from "@/src/theme";
 
 const TIERS: {
-  key: "day_pass" | "monthly";
+  key: "free" | "day_pass" | "monthly";
   title: string;
   price: string;
   perks: string[];
   highlight?: boolean;
   testID: string;
 }[] = [
+  {
+    key: "free",
+    title: "Free (BYOK)",
+    price: "$0",
+    perks: [
+      "All learning modules + agents",
+      "AI runs on your own Google Gemini key",
+      "Zero platform cost",
+    ],
+    testID: "tier-free-btn",
+  },
   {
     key: "day_pass",
     title: "Day Pass",
@@ -62,7 +73,12 @@ export default function Account() {
     }, [refreshUsage]),
   );
 
-  async function checkout(plan: "day_pass" | "monthly") {
+  async function checkout(plan: "free" | "day_pass" | "monthly") {
+    if (plan === "free") {
+      // Free tier doesn't open Stripe — it points at the BYOK panel in Studio.
+      router.push("/(tabs)/studio");
+      return;
+    }
     setError("");
     setBusy(plan);
     try {
@@ -161,7 +177,11 @@ export default function Account() {
               testID={tier.testID}
             >
               <Text style={styles.tierBtnText}>
-                {busy === tier.key ? "Opening Stripe…" : `Get ${tier.title}`}
+                {busy === tier.key
+                  ? "Opening Stripe…"
+                  : tier.key === "free"
+                    ? "Set up your key"
+                    : `Get ${tier.title}`}
               </Text>
             </TouchableOpacity>
           </View>
