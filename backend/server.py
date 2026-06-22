@@ -675,8 +675,8 @@ async def billing_checkout(body: CheckoutIn, request: Request, user=Depends(get_
                         "unit_amount": 1000,
                         "recurring": {"interval": "month"},
                         "product_data": {
-                            "name": "Code Without Limits — Monthly (up to 3 users)",
-                            "description": "Up to 1,000,000 tokens / month, shared across 3 users.",
+                            "name": "Code Without Limits — Monthly Cooperative",
+                            "description": "250 prompts / month, pooled across up to 3 users.",
                         },
                     },
                     "quantity": 1,
