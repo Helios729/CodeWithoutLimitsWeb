@@ -1,9 +1,10 @@
 import { useRouter } from "expo-router";
+import { LinearGradient } from "expo-linear-gradient";
 import * as Linking from "expo-linking";
 import * as WebBrowser from "expo-web-browser";
 import React, { useEffect, useState } from "react";
 import {
-  ImageBackground,
+  Dimensions,
   Platform,
   StyleSheet,
   Text,
@@ -11,6 +12,12 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import Svg, {
+  Defs,
+  LinearGradient as SvgLinearGradient,
+  Path,
+  Stop,
+} from "react-native-svg";
 
 import { useAuth } from "@/src/context/AuthContext";
 import ExpoGoBanner from "@/src/components/ExpoGoBanner";
@@ -76,13 +83,9 @@ export default function Welcome() {
   }
 
   return (
-    <ImageBackground
-      source={{
-        uri: "https://images.pexels.com/photos/9423069/pexels-photo-9423069.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
-      }}
-      style={styles.bg}
-      imageStyle={{ opacity: 0.35 }}
-    >
+    <View style={styles.bg}>
+      <KenscoffMountains />
+
       <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
         <View style={styles.brandRow}>
           <View style={styles.dot} />
@@ -127,12 +130,158 @@ export default function Welcome() {
           </Text>
         </View>
       </SafeAreaView>
-    </ImageBackground>
+    </View>
+  );
+}
+
+// Misty, atmospheric silhouette of the Kenscoff mountains (Haiti).
+// Four overlapping ridges fade from soft pale grey (far) to deep slate
+// (foreground), with a warm sepia dawn glow at the horizon. Built with
+// react-native-svg so it renders crisp on any pixel density and never
+// pixelates the way the old photo did.
+function KenscoffMountains() {
+  const { width, height } = Dimensions.get("window");
+  // Cap the SVG height proportionally so the silhouette feels grounded.
+  const svgHeight = Math.max(height, 600);
+  return (
+    <View style={styles.mountainWrap} pointerEvents="none">
+      {/* Sky: cream → warm sepia haze */}
+      <LinearGradient
+        colors={["#F7F5F0", "#F2E6D4", "#E6CDB0"]}
+        locations={[0, 0.55, 1]}
+        style={StyleSheet.absoluteFill}
+      />
+      <Svg
+        width={width}
+        height={svgHeight}
+        viewBox="0 0 800 600"
+        preserveAspectRatio="xMidYMax slice"
+        style={styles.mountainSvg}
+      >
+        <Defs>
+          {/* Warm sepia glow near the horizon */}
+          <SvgLinearGradient id="dawn" x1="0" y1="0.4" x2="0" y2="1">
+            <Stop offset="0" stopColor="#E6B87D" stopOpacity="0" />
+            <Stop offset="0.35" stopColor="#D89A5C" stopOpacity="0.35" />
+            <Stop offset="1" stopColor="#A0826D" stopOpacity="0.55" />
+          </SvgLinearGradient>
+          {/* Furthest ridge — pale misty slate */}
+          <SvgLinearGradient id="ridge1" x1="0" y1="0" x2="0" y2="1">
+            <Stop offset="0" stopColor="#B6B5AE" stopOpacity="0.55" />
+            <Stop offset="1" stopColor="#9C9A91" stopOpacity="0.85" />
+          </SvgLinearGradient>
+          {/* Mid ridge — sepia-warmed slate */}
+          <SvgLinearGradient id="ridge2" x1="0" y1="0" x2="0" y2="1">
+            <Stop offset="0" stopColor="#8E8576" stopOpacity="0.85" />
+            <Stop offset="1" stopColor="#6E6657" stopOpacity="1" />
+          </SvgLinearGradient>
+          {/* Near ridge — deeper sepia slate */}
+          <SvgLinearGradient id="ridge3" x1="0" y1="0" x2="0" y2="1">
+            <Stop offset="0" stopColor="#6B5E4A" stopOpacity="1" />
+            <Stop offset="1" stopColor="#4F4636" stopOpacity="1" />
+          </SvgLinearGradient>
+          {/* Foreground silhouette — darkest, slate grey w/ warm undertone */}
+          <SvgLinearGradient id="ridge4" x1="0" y1="0" x2="0" y2="1">
+            <Stop offset="0" stopColor="#3F3A30" stopOpacity="1" />
+            <Stop offset="1" stopColor="#2C2922" stopOpacity="1" />
+          </SvgLinearGradient>
+        </Defs>
+
+        {/* Horizon dawn wash */}
+        <Path d="M0,180 L800,180 L800,600 L0,600 Z" fill="url(#dawn)" />
+
+        {/* Far ridge — gentle rolling, deeper into the haze */}
+        <Path
+          d="M0,260
+             C 60,220 110,250 160,232
+             C 220,210 260,238 310,220
+             C 360,205 400,232 450,218
+             C 510,200 550,232 600,218
+             C 660,202 720,232 800,212
+             L 800,600 L 0,600 Z"
+          fill="url(#ridge1)"
+        />
+
+        {/* Mid ridge — defined Kenscoff peaks */}
+        <Path
+          d="M0,360
+             L 70,300
+             L 130,338 L 190,278
+             L 240,332 L 300,290
+             L 360,328 L 420,274
+             L 480,336 L 540,302
+             L 600,338 L 660,288
+             L 720,334 L 800,304
+             L 800,600 L 0,600 Z"
+          fill="url(#ridge2)"
+        />
+
+        {/* Near ridge — sharper, taller peaks */}
+        <Path
+          d="M0,440
+             L 50,408
+             L 110,368
+             L 170,420
+             L 230,352
+             L 290,412
+             L 350,368
+             L 410,340
+             L 470,408
+             L 530,360
+             L 590,412
+             L 650,370
+             L 720,412
+             L 800,388
+             L 800,600 L 0,600 Z"
+          fill="url(#ridge3)"
+        />
+
+        {/* Foreground silhouette */}
+        <Path
+          d="M0,520
+             L 60,490
+             L 130,518
+             L 200,478
+             L 280,516
+             L 360,482
+             L 440,518
+             L 520,486
+             L 600,520
+             L 680,490
+             L 760,518
+             L 800,506
+             L 800,600 L 0,600 Z"
+          fill="url(#ridge4)"
+        />
+      </Svg>
+
+      {/* Soft top-down mist veil to lift the hero text off the ridges */}
+      <LinearGradient
+        colors={[
+          "rgba(247,245,240,0.55)",
+          "rgba(247,245,240,0.18)",
+          "rgba(247,245,240,0)",
+        ]}
+        locations={[0, 0.4, 0.65]}
+        style={StyleSheet.absoluteFill}
+        pointerEvents="none"
+      />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   bg: { flex: 1, backgroundColor: colors.bg },
+  mountainWrap: {
+    ...StyleSheet.absoluteFillObject,
+    overflow: "hidden",
+  },
+  mountainSvg: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
   container: {
     flex: 1,
     padding: spacing.lg,

@@ -67,6 +67,18 @@ export default function ModuleDetail() {
       ) : (
         <ScrollView contentContainerStyle={styles.scroll}>
           <Text style={styles.tagline}>{m!.tagline}</Text>
+          <TouchableOpacity
+            style={[styles.card, { borderColor: colors.brandSecondary, backgroundColor: "#EAF1EB", flexDirection: "row", alignItems: "center", gap: 12 }]}
+            onPress={() => router.push(`/modules/${m!.module_id}/survey`)}
+            testID="module-survey-btn"
+          >
+            <Ionicons name="chatbox-ellipses-outline" size={22} color={colors.brandSecondary} />
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.cardTitle, { color: colors.brandSecondary }]}>Share feedback on this module</Text>
+              <Text style={styles.cardBody}>Helps us improve the next iteration. ~60 seconds.</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={colors.brandSecondary} />
+          </TouchableOpacity>
           {m!.submodules.map((s) => (
             <TouchableOpacity
               key={s.id}

@@ -129,6 +129,19 @@ class CheckoutIn(BaseModel):
     plan: str  # "day_pass" or "monthly"
 
 
+class SurveyIn(BaseModel):
+    module_id: str
+    module_title: str
+    # 5-point Likert + free text per the user's PDF
+    clarity: int          # 1-5
+    pace: int             # 1-5
+    relevance: int        # 1-5
+    confidence: int       # 1-5
+    worked_well: str = ""
+    did_not_work: str = ""
+    would_change: str = ""
+
+
 # ---------- auth helpers ----------
 async def get_current_user(authorization: Optional[str] = Header(default=None)) -> dict:
     """Bearer-token auth. Looks up the session_token in user_sessions,
@@ -727,6 +740,49 @@ async def submodule_detail(module_id: str, sub_id: str):
     detail["module_title"] = m["title"]
     detail["module_id"] = m["module_id"]
     return detail
+
+
+# ---------- routes: post-module surveys ----------
+# In-app survey replaces Google Forms so low-bandwidth learners can submit
+# even when offline-then-sync. Stored in MongoDB; one row per submission.
+
+@api.post("/surveys/submit")
+async def submit_survey(body: SurveyIn, user=Depends(get_current_user)):
+    """Persist one survey response. Idempotent on (user_id, module_id) —
+    a re-submission overwrites so we never double-count."""
+    now = datetime.now(timezone.utc)
+    doc = {
+        "user_id": user["user_id"],
+        "user_email": user["email"],
+        "account_id": user["account_id"],
+        "module_id": body.module_id,
+        "module_title": body.module_title,
+        "clarity": max(1, min(5, body.clarity)),
+        "pace": max(1, min(5, body.pace)),
+        "relevance": max(1, min(5, body.relevance)),
+        "confidence": max(1, min(5, body.confidence)),
+        "worked_well": body.worked_well[:2000],
+        "did_not_work": body.did_not_work[:2000],
+        "would_change": body.would_change[:2000],
+        "submitted_at": now,
+    }
+    await db.surveys.update_one(
+        {"user_id": user["user_id"], "module_id": body.module_id},
+        {"$set": doc},
+        upsert=True,
+    )
+    return {"ok": True}
+
+
+@api.get("/surveys/mine")
+async def my_surveys(user=Depends(get_current_user)):
+    """List the modules this learner has already surveyed (so the UI can
+    show 'You already shared feedback' instead of asking twice)."""
+    rows = await db.surveys.find(
+        {"user_id": user["user_id"]},
+        {"_id": 0, "module_id": 1, "submitted_at": 1},
+    ).to_list(50)
+    return {"submitted": [r["module_id"] for r in rows]}
 
 
 # ---------- routes: team seats (Monthly tier only) ----------
