@@ -3,7 +3,6 @@ import { Stack, useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Linking,
   ScrollView,
   StyleSheet,
   Text,
@@ -119,16 +118,26 @@ export default function Programme() {
                 </Text>
               ) : null}
               {d!.programme_structure.weeks.map((w, i) => {
-                // Best-effort route inference from the week theme: send the
-                // user to the most relevant module list rather than a flat
-                // text wall.
-                const themeLc = (w.theme || w.focus || "").toLowerCase();
+                // The payload uses `title`/`description` in some weeks and
+                // `theme`/`focus` in others. Read whichever is present.
+                const heading = (w as any).title || w.theme || w.focus || "Week";
+                const body =
+                  (w as any).description ||
+                  (w.focus && w.focus !== heading ? w.focus : "");
+                const themeLc = `${heading} ${body}`.toLowerCase();
                 let target: string | null = null;
-                if (themeLc.includes("income") || themeLc.includes("asset") || themeLc.includes("entrepreneur") || themeLc.includes("monetis")) {
+                if (
+                  themeLc.includes("income") ||
+                  themeLc.includes("asset") ||
+                  themeLc.includes("entrepreneur") ||
+                  themeLc.includes("monetis") ||
+                  themeLc.includes("client") ||
+                  themeLc.includes("market")
+                ) {
                   target = "/income";
-                } else if (themeLc.includes("translat") || themeLc.includes("language")) {
+                } else if (themeLc.includes("translat") || themeLc.includes("language") || themeLc.includes("corpus")) {
                   target = "/translator";
-                } else if (themeLc.includes("html") || themeLc.includes("module") || themeLc.includes("learn")) {
+                } else if (themeLc.includes("html") || themeLc.includes("module") || themeLc.includes("learn") || themeLc.includes("studio") || themeLc.includes("phone")) {
                   target = "/(tabs)/learn";
                 } else if (themeLc.includes("quiz") || themeLc.includes("assess")) {
                   target = "/(tabs)/quiz";
@@ -147,10 +156,8 @@ export default function Programme() {
                       <Text style={styles.weekBadgeText}>W{w.week ?? i + 1}</Text>
                     </View>
                     <View style={{ flex: 1 }}>
-                      <Text style={styles.weekTheme}>{w.theme || w.focus || "Week"}</Text>
-                      {w.focus && w.focus !== w.theme ? (
-                        <Text style={styles.sectionBody}>{w.focus}</Text>
-                      ) : null}
+                      <Text style={styles.weekTheme}>{heading}</Text>
+                      {body ? <Text style={styles.sectionBody}>{body}</Text> : null}
                       {(w.activities || []).map((a, j) => (
                         <Text key={j} style={[styles.sectionBody, { marginTop: 2 }]}>
                           • {a}
@@ -228,7 +235,7 @@ export default function Programme() {
             </Text>
             <Text style={styles.licenseBullet}>• Use, copy, modify, and merge the app and its content;</Text>
             <Text style={styles.licenseBullet}>• Publish, distribute, sublicense, and/or sell copies;</Text>
-            <Text style={styles.licenseBullet}>• Adapt it to your community's languages, curricula, and tools.</Text>
+            <Text style={styles.licenseBullet}>• Adapt it to your community&apos;s languages, curricula, and tools.</Text>
             <Text style={[styles.sectionBody, { marginTop: 6 }]}>
               The only condition is attribution. Any copy or substantial
               portion must keep the following notice intact:
