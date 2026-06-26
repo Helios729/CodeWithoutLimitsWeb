@@ -36,6 +36,11 @@ from starlette.middleware.cors import CORSMiddleware
 from emergentintegrations.llm.chat import LlmChat, UserMessage
 
 import quiz_pool
+from content_extra import (
+    income_list_summary,
+    income_module_detail,
+    programme_overview,
+)
 from curriculum import (
     MODULES,
     PROMPT_FRAMEWORKS,
@@ -718,17 +723,45 @@ async def module_detail(module_id: str):
         "persona": m["persona"],
         "tagline": m["tagline"],
         "color": m["color"],
+        "tabs": m.get("tabs") or [],
         "submodules": [
             {
                 "id": s["id"],
                 "title": s["title"],
                 "objective": s["objective"],
+                "difficulty": s.get("difficulty", ""),
                 "has_build_activity": "build_activity" in s,
                 "has_framework": "framework" in s,
             }
             for s in m["submodules"]
         ],
     }
+
+
+# ---------- routes: Income & Asset Module Bank (18 microenterprise modules) ----------
+# Strictly served from income_modules.json. Zero AI tokens consumed.
+
+@api.get("/income/modules")
+async def list_income_modules():
+    return income_list_summary()
+
+
+@api.get("/income/modules/{module_id}")
+async def income_module_detail_route(module_id: str):
+    m = income_module_detail(module_id)
+    if not m:
+        raise HTTPException(404, "Unknown income module")
+    return m
+
+
+# ---------- routes: Programme overview (curriculum, workflow, references) ----------
+
+@api.get("/programme")
+async def programme_route():
+    data = programme_overview()
+    if not data:
+        raise HTTPException(404, "Programme content not loaded")
+    return data
 
 
 @api.get("/modules/{module_id}/{sub_id}")

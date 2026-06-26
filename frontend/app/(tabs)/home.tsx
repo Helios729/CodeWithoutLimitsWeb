@@ -97,6 +97,27 @@ export default function Home() {
           <Ionicons name="arrow-forward" size={24} color="#fff" />
         </TouchableOpacity>
 
+        <View style={styles.tileRow}>
+          <TouchableOpacity
+            style={[styles.tile, styles.tileGreen]}
+            onPress={() => router.push("/income")}
+            testID="home-income-tile"
+          >
+            <Ionicons name="cash-outline" size={22} color={colors.brandSecondary} />
+            <Text style={styles.tileTitle}>Income & Asset Bank</Text>
+            <Text style={styles.tileSub}>18 monetisable digital-asset modules</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.tile, styles.tileCream]}
+            onPress={() => router.push("/programme")}
+            testID="home-programme-tile"
+          >
+            <Ionicons name="book-outline" size={22} color={colors.brand} />
+            <Text style={styles.tileTitle}>About this programme</Text>
+            <Text style={styles.tileSub}>Curriculum · workflow · references</Text>
+          </TouchableOpacity>
+        </View>
+
         <Text style={styles.sectionTitle}>Learning modules</Text>
         <Text style={styles.sectionSub}>
           Four modules · {modules.reduce((a, m) => a + m.submodule_count, 0)} sub-modules total,
@@ -151,6 +172,19 @@ const styles = StyleSheet.create({
   ctaEyebrow: { color: "#FFEFE8", fontSize: 11, letterSpacing: 2, fontWeight: "700", textTransform: "uppercase" },
   ctaTitle: { color: "#fff", fontSize: 22, fontWeight: "700", marginTop: 4 },
   ctaSub: { color: "#FFE6DC", fontSize: 13, marginTop: 6 },
+  tileRow: { flexDirection: "row", gap: spacing.md },
+  tile: {
+    flex: 1,
+    borderRadius: radius.card,
+    borderWidth: 1,
+    padding: spacing.md,
+    gap: 6,
+    minHeight: 110,
+  },
+  tileGreen: { backgroundColor: "#EAF1EB", borderColor: colors.brandSecondary },
+  tileCream: { backgroundColor: "#FFF3EE", borderColor: colors.brand },
+  tileTitle: { color: colors.text, fontSize: 14, fontWeight: "700", marginTop: 4 },
+  tileSub: { color: colors.textSecondary, fontSize: 12, lineHeight: 17 },
   sectionTitle: { color: colors.text, fontSize: 20, fontWeight: "700", marginTop: spacing.md },
   sectionSub: { color: colors.textSecondary, fontSize: 13, lineHeight: 20, marginTop: -8 },
   moduleCard: { flexDirection: "row", alignItems: "center", gap: spacing.md, backgroundColor: colors.surface, borderRadius: radius.card, borderWidth: 1, borderColor: colors.border, padding: spacing.md },

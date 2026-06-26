@@ -145,7 +145,8 @@ def _build_html_module() -> dict:
         for ml in src.get("mini_lessons", []):
             sub = _build_submodule(ml, src.get("sources", []), prefix=f"{prefix_letter}")
             sub["difficulty"] = src.get("difficulty", "")
-            sub["title"] = f"[{src.get('difficulty','')}] {sub['title']}"
+            # Title is shown beneath a difficulty tab on the client now,
+            # so the "[Beginner] …" prefix is no longer needed.
             all_subs.append(sub)
     # Merge sources from all three so resolutions work.
     return {

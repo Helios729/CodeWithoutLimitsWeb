@@ -19,6 +19,7 @@ type Sub = {
   id: string;
   title: string;
   objective: string;
+  difficulty?: string;
   has_build_activity: boolean;
   has_framework: boolean;
 };
@@ -29,6 +30,7 @@ type Mod = {
   persona: string;
   tagline: string;
   color: string;
+  tabs?: string[];
   submodules: Sub[];
 };
 
@@ -38,13 +40,24 @@ export default function ModuleDetail() {
   const moduleId = (params.moduleId as string) || "";
   const [m, setM] = useState<Mod | null>(null);
   const [error, setError] = useState("");
+  const [activeTab, setActiveTab] = useState<string>("");
 
   useEffect(() => {
     api
       .get<Mod>(`/modules/${moduleId}`)
-      .then((r) => setM(r.data))
+      .then((r) => {
+        setM(r.data);
+        if (r.data.tabs && r.data.tabs.length > 0) {
+          setActiveTab(r.data.tabs[0]);
+        }
+      })
       .catch((e) => setError(unwrap(e).message));
   }, [moduleId]);
+
+  const hasTabs = !!(m?.tabs && m.tabs.length > 0);
+  const visibleSubs = hasTabs
+    ? m!.submodules.filter((s) => (s.difficulty || "") === activeTab)
+    : m?.submodules || [];
 
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
@@ -79,7 +92,26 @@ export default function ModuleDetail() {
             </View>
             <Ionicons name="chevron-forward" size={20} color={colors.brandSecondary} />
           </TouchableOpacity>
-          {m!.submodules.map((s) => (
+          {hasTabs ? (
+            <View style={styles.tabBar}>
+              {m!.tabs!.map((t) => {
+                const isActive = t === activeTab;
+                return (
+                  <TouchableOpacity
+                    key={t}
+                    onPress={() => setActiveTab(t)}
+                    style={[styles.tab, isActive && styles.tabActive]}
+                    testID={`module-tab-${t.toLowerCase()}`}
+                  >
+                    <Text style={[styles.tabText, isActive && styles.tabTextActive]}>
+                      {t}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          ) : null}
+          {visibleSubs.map((s) => (
             <TouchableOpacity
               key={s.id}
               style={styles.card}
@@ -133,5 +165,23 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   tagBuild: { backgroundColor: "#FCE9E2", borderColor: colors.brand, color: colors.brand },
+  tabBar: {
+    flexDirection: "row",
+    backgroundColor: colors.surface,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 4,
+    gap: 4,
+  },
+  tab: {
+    flex: 1,
+    paddingVertical: 10,
+    alignItems: "center",
+    borderRadius: radius.pill,
+  },
+  tabActive: { backgroundColor: colors.brand },
+  tabText: { color: colors.textSecondary, fontSize: 13, fontWeight: "600" },
+  tabTextActive: { color: "#fff", fontWeight: "700" },
   error: { color: colors.danger, padding: spacing.lg },
 });
