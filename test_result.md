@@ -101,3 +101,150 @@
 #====================================================================================================
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
+
+user_problem_statement: |
+  Rebuild the EdTech "Code Without Limits" platform with a misty SVG of the
+  Kenscoff (Haiti) mountains on the welcome screen, plus three new features:
+  (a) integrate the 18 Microenterprise Income & Asset modules from
+  income_modules.json; (b) wire app_content.json as the master programme
+  overview screen; (c) refactor the L10b-html module into a Beginner /
+  Intermediate / Advanced tabbed UI; (d) soften the mountain peaks. Domain
+  for deployment is codewithoutlimits.org.
+
+backend:
+  - task: "Income & Asset Module Bank (18 modules) — GET /api/income/modules + /{id}"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py, /app/backend/content_extra.py, /app/backend/curriculum_data/income_modules.json"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "main"
+        -comment: "Loader in content_extra.py reads income_modules.json once at boot. Two routes: list summary (id/title/role/asset/languages/ai_basics_count) and full detail. 404 on unknown id."
+        -working: true
+        -agent: "testing"
+        -comment: "9/9 pytest pass. List returns 18; detail #1 carries the full body; 999 -> 404."
+  - task: "Programme overview — GET /api/programme"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py, /app/backend/content_extra.py, /app/backend/curriculum_data/app_content.json"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "main"
+        -comment: "Returns curated bundle: overview/core_rule/curriculum/system_integration/module_bank_intro/workflow/languages/supplementary/programme_structure/references."
+        -working: true
+        -agent: "testing"
+        -comment: "Non-empty overview.summary, 6 weeks, 5 programme languages, 7 references."
+  - task: "HTML module tabs metadata exposed on GET /api/modules/L10b-html"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py, /app/backend/curriculum.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "main"
+        -comment: "Response now includes tabs:[Beginner,Intermediate,Advanced] and each submodule carries `difficulty`. Removed [Difficulty] prefix from titles since the tab labels the difficulty."
+        -working: true
+        -agent: "testing"
+        -comment: "12 submodules all carry valid difficulty; no [Beginner]/ prefix on titles."
+
+frontend:
+  - task: "Welcome screen — misty Kenscoff mountains SVG (softened curves)"
+    implemented: true
+    working: true
+    file: "/app/frontend/app/welcome.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "main"
+        -comment: "Replaced Pexels photo with a 4-layer react-native-svg silhouette: cream->sepia sky gradient, sepia dawn glow, four ridges from pale slate (far) -> deep slate (foreground). Softened with chained Q-curves; light mist veil over hero text."
+        -working: true
+        -agent: "testing"
+        -comment: "Renders cleanly on /welcome; no broken images, no console errors."
+  - task: "Income & Asset Bank screens (/income, /income/[id])"
+    implemented: true
+    working: true
+    file: "/app/frontend/app/income/index.tsx, /app/frontend/app/income/[id].tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "main"
+        -comment: "List screen renders 18 cards with role badge + asset + language pills. Detail screen has a green Asset card and sections: Execution, Energy maximisation, Why it monetises, Community multiplier, Ethical/Safety rule (when present), AI basics learned, Languages, Citations, Notes."
+        -working: true
+        -agent: "testing"
+        -comment: "All 18 visible; detail #1 shows asset card + all sections."
+  - task: "Programme overview screen (/programme)"
+    implemented: true
+    working: true
+    file: "/app/frontend/app/programme.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "main"
+        -comment: "Renders description, green Core Rule card, Overview with design_principles tags + philosophy, programme structure weeks, languages section, module bank intro with CTA to Income Bank, and References."
+        -working: true
+        -agent: "testing"
+        -comment: "Header + core rule + overview + weeks + references all visible."
+  - task: "Module detail Beginner/Intermediate/Advanced tab UI (L10b-html)"
+    implemented: true
+    working: true
+    file: "/app/frontend/app/modules/[moduleId]/index.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "main"
+        -comment: "When `tabs` array is present on the module response, render a pill bar and filter submodules by `difficulty`. Other modules render as before."
+        -working: true
+        -agent: "testing"
+        -comment: "3-tab pill bar visible; tapping Advanced filters from B1->A1 (Web Components); titles no longer prefixed."
+  - task: "Home tiles for Income Bank + About this programme"
+    implemented: true
+    working: true
+    file: "/app/frontend/app/(tabs)/home.tsx"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "main"
+        -comment: "Side-by-side tile row under the quiz CTA — green tile -> /income, cream tile -> /programme."
+
+metadata:
+  created_by: "main_agent"
+  version: "6.0"
+  test_sequence: 6
+
+test_plan:
+  current_focus: []
+  stuck_tasks: []
+  test_all: false
+  test_priority: "completed"
+
+agent_communication:
+    - agent: "main"
+      message: |
+        Iteration 6: SVG mountain redesign (softer Kenscoff curves) + 18 Income
+        modules + Programme overview + HTML tab UI. All 4 backend endpoints
+        live, 3 new frontend screens wired, Home updated with tiles, prefix
+        stripped from HTML submodules titles. Domain codewithoutlimits.org
+        noted for deployment.
+    - agent: "testing"
+      message: |
+        Iteration 6 verified: 9/9 pytest pass; 5/5 frontend routes render
+        with key copy and screenshots. No new issues. Only pre-existing
+        RN-Web deprecation warnings (shadow*, pointerEvents) — non-blocking.
