@@ -102,6 +102,163 @@
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
 
+
+# ============================================================
+# Iteration 7 — Income label fix, Quiz CTA fix, Translator
+# modules, Glossary, Pilot disclaimer, Reading List footer,
+# HTML-advanced teaser
+# ============================================================
+
+backend:
+  - task: "Income label changed: count=17 + duplication_note for Module 18"
+    implemented: true
+    working: true
+    file: "/app/backend/content_extra.py"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "main"
+        -comment: "Override title to 'Tasks 1–17', expose total_cards=18 + duplication_note to power the curiosity callout."
+        -working: true
+        -agent: "testing"
+        -comment: "11/11 pytest pass; copy verified."
+  - task: "Translator modules — 8 languages, GET /api/translator + /{key}"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py, /app/backend/content_extra.py, /app/backend/curriculum_data/translator_modules/*"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "main"
+        -comment: "Loads manifest.json + 8 per-language JSONs from translator_modules/. Adds monetisation framing about gap=opportunity for low-resource corpora."
+        -working: true
+        -agent: "testing"
+        -comment: "8 modules; haitian_creole detail returns 3 resources + not-covered-by-Seamless flag."
+  - task: "Glossary — 17 terms with reputable citations"
+    implemented: true
+    working: true
+    file: "/app/backend/curriculum_data/glossary.json, /app/backend/content_extra.py, /app/backend/server.py"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "main"
+        -comment: "Hand-curated 17 entries (bandwidth, throughput, bottleneck, corpus + 13 more) each citing a reputable public source (Wikipedia/MDN/OpenAI/Stanford SEP/NIST/arXiv/OSI). Avoided live web-scrape because per-request scrapes are slow & brittle."
+        -working: true
+        -agent: "testing"
+        -comment: "17 terms, all 4 user-requested terms present with source URLs."
+  - task: "Quiz teaser pass-through for Soon-to-Come placeholder"
+    implemented: true
+    working: true
+    file: "/app/backend/curriculum_data/Q10b3_html_advanced.json, /app/backend/quiz_pool.py, /app/backend/server.py"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "main"
+        -comment: "Q10b3 JSON now carries module + per-mini-quiz `teaser`. quiz_pool surfaces it and /api/content/topics includes a `teaser` field. The Quiz tab renders 'Soon to come (teaser)'."
+        -working: true
+        -agent: "testing"
+        -comment: "All 4 html-advanced mini-quizzes carry non-empty teasers."
+
+frontend:
+  - task: "Quiz CTA fixed: 5-minute sprint + 5-question quiz"
+    implemented: true
+    working: true
+    file: "/app/frontend/app/(tabs)/home.tsx"
+    needs_retesting: true
+    status_history:
+        -working: true
+        -agent: "main"
+        -comment: "Was '15-minute sprint / 10-question quiz' (incorrect — quizzes are Bloom-balanced 5 questions). Now matches reality."
+        -working: NA
+        -agent: "testing"
+        -comment: "Auth-gated tab; main agent to self-verify with signed-in browser."
+  - task: "Home pilot banner + Translator/Glossary tiles"
+    implemented: true
+    working: true
+    file: "/app/frontend/app/(tabs)/home.tsx"
+    needs_retesting: true
+    status_history:
+        -working: true
+        -agent: "main"
+        -comment: "Pilot disclaimer at top of scroll, plus a second tile row [Translations | Mini dictionary]."
+        -working: NA
+        -agent: "testing"
+        -comment: "Auth-gated; main agent to self-verify."
+  - task: "Income list curiosity callout for Module 18"
+    implemented: true
+    working: true
+    file: "/app/frontend/app/income/index.tsx"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "main"
+        -comment: "Green callout 'Why is Task 18 the same as Task 2?' rendered immediately before card #18."
+        -working: true
+        -agent: "testing"
+        -comment: "Visible in screenshot."
+  - task: "Translator screens (/translator, /translator/[key])"
+    implemented: true
+    working: true
+    file: "/app/frontend/app/translator/index.tsx, /app/frontend/app/translator/[key].tsx"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "main"
+        -comment: "List shows 8 cards + gap-is-opportunity callout + licensing-at-a-glance. Detail shows recommended resources with commercial badges, pivot languages, ASR coverage, and verification policy."
+        -working: true
+        -agent: "testing"
+        -comment: "All 8 cards + 'gap' callout + Haitian Creole detail rendering correctly."
+  - task: "Glossary screen (/glossary)"
+    implemented: true
+    working: true
+    file: "/app/frontend/app/glossary.tsx"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "main"
+        -comment: "Searchable collapsible list. Each term shows short, full definition, examples, and a green Source card with publisher + clickable URL."
+        -working: true
+        -agent: "testing"
+        -comment: "17 cards; Bandwidth expand shows source URL."
+  - task: "Module detail 'Reading List Coming Soon' footer"
+    implemented: true
+    working: true
+    file: "/app/frontend/app/modules/[moduleId]/index.tsx"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "main"
+        -comment: "Terracotta-bordered card at the end of every module."
+        -working: true
+        -agent: "testing"
+        -comment: "Visible after the submodule list."
+  - task: "Mission screen pilot disclaimer"
+    implemented: true
+    working: true
+    file: "/app/frontend/app/mission.tsx"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "main"
+        -comment: "Orange/cream callout 'This is a pilot app.' placed right after the headline."
+        -working: true
+        -agent: "testing"
+        -comment: "Visible at top of /mission."
+
+agent_communication:
+    - agent: "main"
+      message: |
+        Iteration 7 — 8 tasks landed. Auth-gated Home tab (/(tabs)/home) carries
+        the corrected Quiz CTA and the new pilot banner + Translator/Glossary
+        tiles; testing agent flagged that those require a signed-in session to
+        verify. Lint clean; backend 11/11 pass.
+    - agent: "testing"
+      message: |
+        Iteration 7: 11/11 backend pytest pass + 10/10 public frontend routes
+        rendered with no console errors. Only pre-existing RN-Web deprecation
+        warnings (shadow*, pointerEvents) observed.
+
+
 user_problem_statement: |
   Rebuild the EdTech "Code Without Limits" platform with a misty SVG of the
   Kenscoff (Haiti) mountains on the welcome screen, plus three new features:
