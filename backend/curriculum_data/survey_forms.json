@@ -1,0 +1,5 @@
+{
+  "schema_version": "1.0",
+  "description": "Maps module_id -> Google Form URL for post-module surveys. Leave form_url null until the user provides a URL. Once filled in, the in-app survey button switches from the native MongoDB form to the Google Form.",
+  "surveys": []
+}

@@ -168,6 +168,21 @@ export default function Home() {
           <Ionicons name="chevron-forward" size={20} color={colors.brand} />
         </TouchableOpacity>
 
+        <TouchableOpacity
+          style={[styles.resourcesRow, { backgroundColor: "#EAF1EB", borderColor: colors.brandSecondary }]}
+          onPress={() => router.push("/forms")}
+          testID="home-forms-tile"
+        >
+          <Ionicons name="clipboard-outline" size={22} color={colors.brandSecondary} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.tileTitle}>Survey forms registry</Text>
+            <Text style={styles.tileSub}>
+              All 39 survey titles + module ids — for mapping Google Forms
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color={colors.brandSecondary} />
+        </TouchableOpacity>
+
         <Text style={styles.sectionTitle}>Learning modules</Text>
         <Text style={styles.sectionSub}>
           Four modules · {modules.reduce((a, m) => a + m.submodule_count, 0)} sub-modules total,

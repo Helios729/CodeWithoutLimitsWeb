@@ -28,7 +28,7 @@ import stripe
 from bs4 import BeautifulSoup  # noqa: F401  (used indirectly via scraper)
 from dotenv import load_dotenv
 from fastapi import APIRouter, Depends, FastAPI, Header, HTTPException, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, Field
 from starlette.middleware.cors import CORSMiddleware
@@ -802,6 +802,139 @@ async def resources_route():
     if not data:
         raise HTTPException(404, "Resources not loaded")
     return data
+
+
+# ---------- routes: external-link redirect (bypasses cross-origin
+# isolation in the Emergent preview so popups can reach sites that
+# would otherwise be blocked with ERR_BLOCKED_BY_RESPONSE) ----------
+
+_GO_ALLOWED_HOSTS = {
+    "huggingface.co", "github.com", "raw.githubusercontent.com",
+    "arxiv.org", "aclanthology.org", "dl.acm.org", "plato.stanford.edu",
+    "en.wikipedia.org", "developer.mozilla.org", "opensource.org",
+    "csrc.nist.gov", "openai.com", "help.openai.com",
+    "automatetheboringstuff.com", "open.umn.edu", "javascript.info",
+    "www.deeplearningbook.org", "deeplearningbook.org",
+    "oli.cmu.edu", "ocw.mit.edu", "www.edx.org", "edx.org",
+    "www.askpython.com", "askpython.com", "www.python.org", "python.org",
+    "codefinity.com", "alison.com", "coddy.tech",
+    "docs.google.com", "forms.gle",
+    "huggingface.com",  # safety alias
+}
+
+
+def _host_of(url: str) -> str:
+    from urllib.parse import urlparse
+    try:
+        return (urlparse(url).hostname or "").lower()
+    except Exception:
+        return ""
+
+
+@api.get("/go")
+async def go_redirect(url: str):
+    """302 to the requested URL after host allowlist check. This frees
+    Expo Web popups from cross-origin-opener restrictions (the preview
+    environment is cross-origin-isolated, which caused huggingface.co
+    and other external targets to fail with ERR_BLOCKED_BY_RESPONSE)."""
+    if not url or not url.startswith(("http://", "https://")):
+        raise HTTPException(400, "Invalid url")
+    host = _host_of(url)
+    # Allow the exact host or any *.host that ends with an allowed host.
+    if not any(host == h or host.endswith("." + h) for h in _GO_ALLOWED_HOSTS):
+        raise HTTPException(403, f"Host not on allowlist: {host}")
+    return RedirectResponse(url=url, status_code=302)
+
+
+# ---------- routes: survey form registry ----------
+# The user is providing Google Forms for each post-module survey. We
+# need a stable, browsable list of every survey's title + id so they
+# can map each Form URL → module. Form URLs land in `survey_forms.json`
+# (one per module), and learners see "Open Survey Form" once a URL is
+# populated. While URLs are blank, the native MongoDB survey at
+# `/modules/{id}/survey` remains the default.
+
+def _load_survey_form_registry() -> dict:
+    p = Path(__file__).parent / "curriculum_data" / "survey_forms.json"
+    if not p.exists():
+        return {"surveys": []}
+    try:
+        return json.loads(p.read_text(encoding="utf-8"))
+    except Exception:
+        return {"surveys": []}
+
+
+@api.get("/forms")
+async def list_survey_forms():
+    """Catalog of every surveyable unit, including its canonical title
+    and the matching Google Form URL (when configured)."""
+    reg = _load_survey_form_registry()
+    by_id = {s.get("module_id"): s for s in reg.get("surveys", []) if isinstance(s, dict)}
+
+    items = []
+    # Learning modules (the 11 hand-authored ones).
+    for m in MODULES:
+        mid = m.get("module_id")
+        items.append({
+            "kind": "learning",
+            "module_id": mid,
+            "title": m.get("title", ""),
+            "survey_title": f"Code Without Limits — {m.get('title','')} survey",
+            "form_url": (by_id.get(mid) or {}).get("form_url") or None,
+            "native_survey_path": f"/modules/{mid}/survey",
+        })
+    # Income & Asset modules (17 distinct + #18 duplicate).
+    inc = income_list_summary()
+    for m in inc.get("modules", []):
+        slug = m.get("slug") or str(m.get("id"))
+        sid = f"income__{slug}"
+        items.append({
+            "kind": "income",
+            "module_id": sid,
+            "title": m.get("title", ""),
+            "survey_title": f"Code Without Limits — Income Module {m.get('id')}: {m.get('title','')} survey",
+            "form_url": (by_id.get(sid) or {}).get("form_url") or None,
+            "native_survey_path": f"/income/{m.get('id')}",
+        })
+    # Translator modules.
+    tr = translator_list_summary()
+    for m in tr.get("modules", []) or []:
+        key = m.get("key", "")
+        sid = f"translator__{key}"
+        items.append({
+            "kind": "translator",
+            "module_id": sid,
+            "title": m.get("language", ""),
+            "survey_title": f"Code Without Limits — Translator: {m.get('language','')} survey",
+            "form_url": (by_id.get(sid) or {}).get("form_url") or None,
+            "native_survey_path": f"/translator/{key}",
+        })
+    # Programme-level surveys.
+    for sid, title in [
+        ("programme__overall", "Overall Programme Experience"),
+        ("programme__pilot_feedback", "Pilot App — Bug Reports & Suggestions"),
+    ]:
+        items.append({
+            "kind": "programme",
+            "module_id": sid,
+            "title": title,
+            "survey_title": f"Code Without Limits — {title}",
+            "form_url": (by_id.get(sid) or {}).get("form_url") or None,
+            "native_survey_path": None,
+        })
+
+    return {
+        "title": "Survey Forms registry",
+        "instructions": (
+            "Each row is one survey. The 'survey_title' is the exact name to use "
+            "in Google Forms so the team can match responses to the right "
+            "module. When a 'form_url' is filled in (in survey_forms.json on the "
+            "backend), the app will show 'Open Survey Form' on that module's "
+            "page. Until then, the native MongoDB survey remains the default."
+        ),
+        "count": len(items),
+        "items": items,
+    }
 
 
 @api.get("/modules/{module_id}/{sub_id}")

@@ -137,12 +137,12 @@ export default function Programme() {
                   target = "/income";
                 } else if (themeLc.includes("translat") || themeLc.includes("language") || themeLc.includes("corpus")) {
                   target = "/translator";
-                } else if (themeLc.includes("html") || themeLc.includes("module") || themeLc.includes("learn") || themeLc.includes("studio") || themeLc.includes("phone")) {
-                  target = "/(tabs)/learn";
+                } else if (themeLc.includes("html") || themeLc.includes("module") || themeLc.includes("learn") || themeLc.includes("studio") || themeLc.includes("phone") || themeLc.includes("production")) {
+                  target = "/(tabs)/studio";
                 } else if (themeLc.includes("quiz") || themeLc.includes("assess")) {
                   target = "/(tabs)/quiz";
                 } else if (themeLc.includes("ai") || themeLc.includes("basic") || themeLc.includes("foundation")) {
-                  target = "/(tabs)/learn";
+                  target = "/(tabs)/home";
                 } else if (themeLc.includes("packag") || themeLc.includes("pricing") || themeLc.includes("sell")) {
                   target = "/income";
                 }
