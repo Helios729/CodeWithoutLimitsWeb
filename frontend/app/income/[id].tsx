@@ -14,6 +14,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { api, unwrap } from "@/src/lib/api";
 import { colors, radius, spacing } from "@/src/theme";
+import { openExternal } from "@/src/lib/openExternal";
 
 type Citation = { label?: string; url?: string; title?: string };
 
@@ -157,7 +158,7 @@ export default function IncomeDetail() {
               {m!.citations.map((c, i) => (
                 <TouchableOpacity
                   key={i}
-                  onPress={() => (c.url ? Linking.openURL(c.url) : null)}
+                  onPress={() => (c.url ? openExternal(c.url) : null)}
                   disabled={!c.url}
                   style={styles.citationRow}
                 >

@@ -16,6 +16,7 @@ import { useAuth } from "@/src/context/AuthContext";
 import { api, unwrap } from "@/src/lib/api";
 import { getByokKey } from "@/src/lib/byok";
 import { colors, radius, spacing } from "@/src/theme";
+import { openExternal } from "@/src/lib/openExternal";
 
 type Source = { url: string; institution: string; title?: string };
 type Question = { question: string; options: string[]; source: Source | null };
@@ -222,7 +223,7 @@ export default function QuizRunner() {
               ) : null}
               {q.source ? (
                 <TouchableOpacity
-                  onPress={() => Linking.openURL(q.source!.url)}
+                  onPress={() => openExternal(q.source!.url)}
                   testID={`quiz-${qi}-source`}
                 >
                   <Text style={styles.source}>
@@ -261,7 +262,7 @@ export default function QuizRunner() {
               {allSources.map((s, i) => (
                 <TouchableOpacity
                   key={`${s.url}-${i}`}
-                  onPress={() => Linking.openURL(s.url)}
+                  onPress={() => openExternal(s.url)}
                 >
                   <Text style={styles.refRow}>• {s.institution} — {s.url}</Text>
                 </TouchableOpacity>

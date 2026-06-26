@@ -14,6 +14,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { api, unwrap } from "@/src/lib/api";
 import { colors, radius, spacing } from "@/src/theme";
+import { openExternal } from "@/src/lib/openExternal";
 
 type Book = { title: string; author?: string; url: string; topic?: string; note?: string };
 type CourseItem = { name: string; url: string; note?: string };
@@ -76,7 +77,7 @@ export default function Resources() {
               <TouchableOpacity
                 key={i}
                 style={styles.card}
-                onPress={() => Linking.openURL(b.url)}
+                onPress={() => openExternal(b.url)}
                 testID={`reading-${i}`}
               >
                 <View style={styles.cardHead}>
@@ -111,7 +112,7 @@ export default function Resources() {
                   <TouchableOpacity
                     key={ii}
                     style={[styles.card, styles.courseCard]}
-                    onPress={() => Linking.openURL(it.url)}
+                    onPress={() => openExternal(it.url)}
                     testID={`course-${gi}-${ii}`}
                   >
                     <View style={styles.cardHead}>

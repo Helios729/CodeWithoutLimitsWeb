@@ -11,6 +11,7 @@ import {
 
 import { getByokKey, removeByokKey, setByokKey } from "@/src/lib/byok";
 import { colors, radius, spacing } from "@/src/theme";
+import { openExternal } from "@/src/lib/openExternal";
 
 // Free-tier BYOK panel. Used inline on the Studio screen and (via the same
 // component) on the active quiz screen. Only renders when the parent tells
@@ -106,7 +107,7 @@ export default function ByokPanel({
       </View>
 
       <TouchableOpacity
-        onPress={() => Linking.openURL("https://aistudio.google.com/app/apikey")}
+        onPress={() => openExternal("https://aistudio.google.com/app/apikey")}
         testID="byok-help-link"
       >
         <Text style={styles.help}>

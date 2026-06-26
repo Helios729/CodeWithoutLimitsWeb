@@ -16,6 +16,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { api, unwrap } from "@/src/lib/api";
 import { colors, radius, spacing } from "@/src/theme";
+import { openExternal } from "@/src/lib/openExternal";
 
 type Source = { url: string; institution: string };
 type Framework = {
@@ -175,7 +176,7 @@ export default function SubmoduleDetail() {
             <View style={styles.card} testID="sources-card">
               <Text style={styles.label}>Sources</Text>
               {s!.sources.map((src, i) => (
-                <TouchableOpacity key={i} onPress={() => Linking.openURL(src.url)}>
+                <TouchableOpacity key={i} onPress={() => openExternal(src.url)}>
                   <Text style={styles.sourceText}>
                     • {src.institution} — {src.url}
                   </Text>

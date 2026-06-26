@@ -14,6 +14,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { api, unwrap } from "@/src/lib/api";
 import { colors, radius, spacing } from "@/src/theme";
+import { openExternal } from "@/src/lib/openExternal";
 
 type Resource = {
   name: string;
@@ -126,7 +127,7 @@ export default function TranslatorDetail() {
                 </View>
               ) : null}
               {r.url ? (
-                <TouchableOpacity onPress={() => Linking.openURL(r.url!)} style={styles.linkRow}>
+                <TouchableOpacity onPress={() => openExternal(r.url!)} style={styles.linkRow}>
                   <Ionicons name="open-outline" size={14} color={colors.brand} />
                   <Text style={styles.linkText} numberOfLines={1}>{r.url}</Text>
                 </TouchableOpacity>

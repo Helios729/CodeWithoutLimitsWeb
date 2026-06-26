@@ -15,6 +15,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { api, unwrap } from "@/src/lib/api";
 import { colors, radius, spacing } from "@/src/theme";
+import { openExternal } from "@/src/lib/openExternal";
 
 type Term = {
   term: string;
@@ -122,7 +123,7 @@ export default function Glossary() {
                           <Text style={styles.sourceTitle}>{t.source.title}</Text>
                           {t.source.publisher ? <Text style={styles.sourcePub}>{t.source.publisher}</Text> : null}
                           {t.source.url ? (
-                            <TouchableOpacity onPress={() => Linking.openURL(t.source!.url!)}>
+                            <TouchableOpacity onPress={() => openExternal(t.source!.url!)}>
                               <Text style={styles.sourceUrl} numberOfLines={1}>{t.source.url}</Text>
                             </TouchableOpacity>
                           ) : null}

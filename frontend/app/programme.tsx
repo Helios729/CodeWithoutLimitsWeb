@@ -14,6 +14,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { api, unwrap } from "@/src/lib/api";
 import { colors, radius, spacing } from "@/src/theme";
+import { openExternal } from "@/src/lib/openExternal";
 
 type Overview = { summary?: string; design_principles?: string[]; philosophy?: string };
 type Languages = {
@@ -117,24 +118,51 @@ export default function Programme() {
                   {d!.programme_structure.access_note}
                 </Text>
               ) : null}
-              {d!.programme_structure.weeks.map((w, i) => (
-                <View key={i} style={styles.weekRow}>
-                  <View style={styles.weekBadge}>
-                    <Text style={styles.weekBadgeText}>W{w.week ?? i + 1}</Text>
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.weekTheme}>{w.theme || w.focus || "Week"}</Text>
-                    {w.focus && w.focus !== w.theme ? (
-                      <Text style={styles.sectionBody}>{w.focus}</Text>
+              {d!.programme_structure.weeks.map((w, i) => {
+                // Best-effort route inference from the week theme: send the
+                // user to the most relevant module list rather than a flat
+                // text wall.
+                const themeLc = (w.theme || w.focus || "").toLowerCase();
+                let target: string | null = null;
+                if (themeLc.includes("income") || themeLc.includes("asset") || themeLc.includes("entrepreneur") || themeLc.includes("monetis")) {
+                  target = "/income";
+                } else if (themeLc.includes("translat") || themeLc.includes("language")) {
+                  target = "/translator";
+                } else if (themeLc.includes("html") || themeLc.includes("module") || themeLc.includes("learn")) {
+                  target = "/(tabs)/learn";
+                } else if (themeLc.includes("quiz") || themeLc.includes("assess")) {
+                  target = "/(tabs)/quiz";
+                }
+                const Row: any = target ? TouchableOpacity : View;
+                const rowProps: any = target
+                  ? {
+                      onPress: () => router.push(target as any),
+                      activeOpacity: 0.7,
+                      testID: `programme-week-${w.week ?? i + 1}`,
+                    }
+                  : {};
+                return (
+                  <Row key={i} style={styles.weekRow} {...rowProps}>
+                    <View style={styles.weekBadge}>
+                      <Text style={styles.weekBadgeText}>W{w.week ?? i + 1}</Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.weekTheme}>{w.theme || w.focus || "Week"}</Text>
+                      {w.focus && w.focus !== w.theme ? (
+                        <Text style={styles.sectionBody}>{w.focus}</Text>
+                      ) : null}
+                      {(w.activities || []).map((a, j) => (
+                        <Text key={j} style={[styles.sectionBody, { marginTop: 2 }]}>
+                          • {a}
+                        </Text>
+                      ))}
+                    </View>
+                    {target ? (
+                      <Ionicons name="chevron-forward" size={18} color={colors.brand} />
                     ) : null}
-                    {(w.activities || []).map((a, j) => (
-                      <Text key={j} style={[styles.sectionBody, { marginTop: 2 }]}>
-                        • {a}
-                      </Text>
-                    ))}
-                  </View>
-                </View>
-              ))}
+                  </Row>
+                );
+              })}
             </View>
           ) : null}
 
@@ -180,11 +208,48 @@ export default function Programme() {
                 style={styles.linkBtn}
                 testID="programme-open-income-btn"
               >
-                <Text style={styles.linkBtnText}>Open the 18 Income Modules</Text>
+                <Text style={styles.linkBtnText}>Open the 17 Income Modules</Text>
                 <Ionicons name="arrow-forward" size={16} color="#fff" />
               </TouchableOpacity>
             </View>
           ) : null}
+
+          <View style={styles.licenseCard} testID="programme-mit-license">
+            <View style={styles.sectionHeader}>
+              <Ionicons name="document-text-outline" size={16} color={colors.brandSecondary} />
+              <Text style={[styles.sectionLabel, { color: colors.brandSecondary }]}>
+                Licence — MIT (Open Educational Resource)
+              </Text>
+            </View>
+            <Text style={styles.sectionBody}>
+              Code Without Limits is released under the MIT License as an open
+              educational resource. You — students, community members,
+              educators, and developers — are free to:
+            </Text>
+            <Text style={styles.licenseBullet}>• Use, copy, modify, and merge the app and its content;</Text>
+            <Text style={styles.licenseBullet}>• Publish, distribute, sublicense, and/or sell copies;</Text>
+            <Text style={styles.licenseBullet}>• Adapt it to your community's languages, curricula, and tools.</Text>
+            <Text style={[styles.sectionBody, { marginTop: 6 }]}>
+              The only condition is attribution. Any copy or substantial
+              portion must keep the following notice intact:
+            </Text>
+            <View style={styles.attributionBox}>
+              <Text style={styles.attributionText}>
+                © 2026 Carline Romain — created for Mondial Connections &
+                Community Changers Foundations.{"\n"}
+                Released under the MIT License. THE SOFTWARE IS PROVIDED
+                &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND.
+              </Text>
+            </View>
+            <TouchableOpacity
+              onPress={() => openExternal("https://opensource.org/license/mit/")}
+              style={styles.licenseLinkRow}
+              testID="programme-mit-license-link"
+            >
+              <Ionicons name="open-outline" size={14} color={colors.brand} />
+              <Text style={styles.licenseLinkText}>Read the full MIT License (opensource.org)</Text>
+            </TouchableOpacity>
+          </View>
 
           {(d!.references || []).length > 0 ? (
             <View style={styles.section}>
@@ -195,7 +260,7 @@ export default function Programme() {
               {d!.references!.map((r, i) => (
                 <TouchableOpacity
                   key={i}
-                  onPress={() => (r.url ? Linking.openURL(r.url) : null)}
+                  onPress={() => (r.url ? openExternal(r.url) : null)}
                   disabled={!r.url}
                   style={styles.citationRow}
                 >
@@ -294,5 +359,25 @@ const styles = StyleSheet.create({
   linkBtnText: { color: "#fff", fontWeight: "700", fontSize: 14 },
   citationRow: { paddingVertical: 4 },
   citationLabel: { color: colors.brand, fontSize: 13, textDecorationLine: "underline" },
+  licenseCard: {
+    backgroundColor: "#EAF1EB",
+    borderColor: colors.brandSecondary,
+    borderWidth: 1,
+    borderRadius: radius.card,
+    padding: spacing.md,
+    gap: 6,
+  },
+  licenseBullet: { color: colors.text, fontSize: 13, lineHeight: 20 },
+  attributionBox: {
+    backgroundColor: colors.surface,
+    borderColor: colors.brandSecondary,
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: spacing.md,
+    marginTop: 4,
+  },
+  attributionText: { color: colors.text, fontSize: 12, lineHeight: 19, fontFamily: "monospace" },
+  licenseLinkRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 6 },
+  licenseLinkText: { color: colors.brand, fontSize: 12, textDecorationLine: "underline" },
   error: { color: colors.danger, padding: spacing.lg },
 });

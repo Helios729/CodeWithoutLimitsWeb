@@ -5,6 +5,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { storage } from "@/src/utils/storage";
 import { colors, radius, spacing } from "@/src/theme";
+import { openExternal } from "@/src/lib/openExternal";
 
 const SEEN_KEY = "mission_seen";
 
@@ -118,7 +119,7 @@ export default function MissionScreen() {
 
         <TouchableOpacity
           style={styles.refLinkRow}
-          onPress={() => Linking.openURL("https://arxiv.org/abs/2412.03716")}
+          onPress={() => openExternal("https://arxiv.org/abs/2412.03716")}
           testID="mission-shumba-ref"
         >
           <Ionicons name="library-outline" size={14} color={colors.brandSecondary} />
