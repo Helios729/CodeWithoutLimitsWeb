@@ -83,7 +83,7 @@ export default function Home() {
           <View style={styles.alert} testID="byok-banner">
             <Ionicons name="gift-outline" size={20} color={colors.brandSecondary} />
             <Text style={styles.alertText}>
-              You have {Math.max(0, (usage.daily_prompts_cap || 5) - (usage.daily_prompts_used || 0))} free AI prompts left today. Use them on a quiz or in the Studio.
+              You have {Math.max(0, (usage.daily_prompts_cap || 5) - (usage.daily_prompts_used || 0))} of {usage.daily_prompts_cap || 5} free AI calls left today. (Each Studio prompt or quiz generation uses one. Quizzes will stop counting once your authored question bank is wired in.)
             </Text>
           </View>
         ) : null}
