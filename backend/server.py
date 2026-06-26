@@ -35,6 +35,7 @@ from starlette.middleware.cors import CORSMiddleware
 
 from emergentintegrations.llm.chat import LlmChat, UserMessage
 
+import quiz_pool
 from curriculum import (
     MODULES,
     PROMPT_FRAMEWORKS,
@@ -280,8 +281,22 @@ async def usage_me(user=Depends(get_current_user)):
 # ---------- routes: educational content ----------
 @api.get("/content/topics")
 async def list_topics():
-    """Topic catalog the learner picks from. Static list — the heavy
-    scraped text only loads when a quiz is generated."""
+    """Quiz tab picker. Reads the author's Q*.json files — one card per
+    mini-quiz (currently 4 mini-quizzes per Q module). The OLD scraped-topic
+    list is no longer used; quizzes come from authored JSON, not Gemini."""
+    pool_topics = quiz_pool.list_quiz_topics()
+    if pool_topics:
+        return {"topics": [
+            {
+                "topic_id": t["topic_id"],
+                "title": t["title"],
+                "description": f"{t['module_title']} · 5 questions",
+                "source_count": t["question_count"],
+                "institutions": [t["module_title"]],
+            }
+            for t in pool_topics
+        ]}
+    # Fallback to the original scraped catalog if no Q files are present yet.
     return {"topics": [
         {
             "topic_id": t["topic_id"],
@@ -420,6 +435,59 @@ def _parse_quiz_json(text: str) -> list[dict]:
 
 @api.post("/quiz/generate")
 async def quiz_generate(body: QuizGenerateIn, user=Depends(get_current_user)):
+    """Serve a 5-question Bloom-balanced quiz from the authored JSON pool.
+    Zero AI calls. Students can take unlimited quizzes — the daily prompt
+    budget is reserved exclusively for the Studio chat."""
+    quiz_data = quiz_pool.build_quiz(body.topic_id)
+    if quiz_data:
+        # Persist correct answers server-side so they can't be read from the
+        # client. The submit endpoint will look them up by quiz_id.
+        quiz_id = f"quiz_{uuid.uuid4().hex[:10]}"
+        questions_storage = []
+        for q, correct in zip(quiz_data["questions"], quiz_data["_correct_indexes"]):
+            questions_storage.append({
+                **q,
+                "correct_index": correct,
+            })
+        await db.quizzes.insert_one({
+            "quiz_id": quiz_id,
+            "user_id": user["user_id"],
+            "account_id": user["account_id"],
+            "topic_id": body.topic_id,
+            "topic_title": quiz_data["topic_title"],
+            "questions": questions_storage,
+            "submitted": False,
+            "created_at": datetime.now(timezone.utc),
+        })
+        return {
+            "quiz_id": quiz_id,
+            "topic_id": body.topic_id,
+            "topic_title": quiz_data["topic_title"],
+            "questions": [
+                {"question": q["question"], "options": q["options"], "source": q["source"]}
+                for q in quiz_data["questions"]
+            ],
+            "all_sources": [
+                {"url": "", "institution": quiz_data.get("module_title", ""),
+                 "title": quiz_data.get("source_lesson", "")},
+            ],
+            "tokens_charged": 0,
+        }
+    # Fallback path: legacy Gemini-generated 10-question quiz when no Q file
+    # exists for the topic_id. Counts against quota.
+    try:
+        await assert_can_call(db, user["user_id"], user["account_id"])
+    except ValueError as e:
+        return JSONResponse({"error": "quota_exceeded", "message": str(e)}, status_code=429)
+    topic = get_topic(body.topic_id)
+    if not topic:
+        raise HTTPException(404, "Unknown topic")
+    return JSONResponse({"error": "quiz_unavailable",
+                         "message": "Quiz pool not yet authored for this topic."}, status_code=404)
+
+
+@api.post("/quiz/generate-legacy")
+async def quiz_generate_legacy(body: QuizGenerateIn, user=Depends(get_current_user)):
     """Generate exactly 10 MCQs from the scraped sources for the topic.
     Quota is checked BEFORE the LLM call and recorded AFTER, using the
     real usage returned by the model."""
