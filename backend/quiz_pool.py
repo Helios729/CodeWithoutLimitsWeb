@@ -36,20 +36,25 @@ def _load_q_files() -> list[dict]:
 
 
 def list_quiz_topics() -> list[dict]:
-    """One topic per mini-quiz. The Quiz tab renders these as picker cards."""
+    """One topic per mini-quiz. The Quiz tab renders these as picker cards.
+    Mini-quizzes with status='coming_soon' surface as locked placeholders
+    so learners can see what's planned without crashing on an empty pool."""
     topics = []
     for q in _load_q_files():
         mod_id = q.get("module_id", "")
         mod_title = (q.get("module_title", "") or "").rstrip(" -Q").rstrip("-")
+        mod_coming = q.get("status") == "coming_soon"
         for mq in q.get("mini_quizzes", []):
             mq_num = mq.get("mq", "")
+            mq_coming = mod_coming or mq.get("status") == "coming_soon" or not mq.get("questions")
             topics.append({
                 "topic_id": f"{mod_id}__mq{mq_num}",
                 "title": mq.get("title", f"Mini-Quiz {mq_num}"),
                 "module_title": mod_title,
                 "source_lesson": mq.get("source_lesson", ""),
                 "question_count": len(mq.get("questions", [])),
-                "institutions": [],  # filled by /content endpoint compatibility
+                "coming_soon": mq_coming,
+                "institutions": [],
             })
     return topics
 

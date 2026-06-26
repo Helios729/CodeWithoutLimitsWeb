@@ -1,0 +1,14 @@
+{
+  "module_id": "html-advanced",
+  "module_title": "HTML Advanced",
+  "type": "quiz",
+  "difficulty": "advanced",
+  "companion_lesson_id": "L10b_adv_html",
+  "status": "coming_soon",
+  "mini_quizzes": [
+    {"mq": 1, "title": "MQ-1 · Semantic HTML5", "status": "coming_soon", "questions": []},
+    {"mq": 2, "title": "MQ-2 · Forms & Validation", "status": "coming_soon", "questions": []},
+    {"mq": 3, "title": "MQ-3 · Accessibility (WCAG & ARIA)", "status": "coming_soon", "questions": []},
+    {"mq": 4, "title": "MQ-4 · APIs & Advanced Features", "status": "coming_soon", "questions": []}
+  ]
+}

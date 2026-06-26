@@ -23,6 +23,7 @@ type Topic = {
   description: string;
   source_count: number;
   institutions: string[];
+  coming_soon?: boolean;
 };
 
 export default function QuizHub() {
@@ -100,17 +101,21 @@ export default function QuizHub() {
           topics.map((t) => (
             <TouchableOpacity
               key={t.topic_id}
-              style={styles.card}
-              onPress={() => router.push(`/quiz/${t.topic_id}`)}
+              style={[styles.card, t.coming_soon && { opacity: 0.55 }]}
+              onPress={() => !t.coming_soon && router.push(`/quiz/${t.topic_id}`)}
+              disabled={t.coming_soon}
               testID={`topic-${t.topic_id}-btn`}
             >
-              <Text style={styles.cardTitle}>{t.title}</Text>
+              <Text style={styles.cardTitle}>
+                {t.coming_soon ? "🔒 " : ""}{t.title}
+              </Text>
               <Text style={styles.cardDesc}>{t.description}</Text>
               <View style={styles.metaRow}>
-                <Ionicons name="library-outline" size={14} color={colors.textSecondary} />
+                <Ionicons name={t.coming_soon ? "time-outline" : "library-outline"} size={14} color={colors.textSecondary} />
                 <Text style={styles.meta}>
-                  {t.source_count} source
-                  {t.source_count === 1 ? "" : "s"} · {t.institutions.join(", ")}
+                  {t.coming_soon
+                    ? "Soon to come — quiz pool in development"
+                    : `${t.source_count} question${t.source_count === 1 ? "" : "s"} · ${t.institutions.join(", ")}`}
                 </Text>
               </View>
             </TouchableOpacity>

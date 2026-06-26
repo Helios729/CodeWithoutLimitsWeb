@@ -290,9 +290,14 @@ async def list_topics():
             {
                 "topic_id": t["topic_id"],
                 "title": t["title"],
-                "description": f"{t['module_title']} · 5 questions",
+                "description": (
+                    f"{t['module_title']} · Coming soon"
+                    if t.get("coming_soon") else
+                    f"{t['module_title']} · 5 questions"
+                ),
                 "source_count": t["question_count"],
                 "institutions": [t["module_title"]],
+                "coming_soon": t.get("coming_soon", False),
             }
             for t in pool_topics
         ]}

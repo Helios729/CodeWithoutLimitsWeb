@@ -26,7 +26,7 @@ export default function Welcome() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    if (user) router.replace("/(tabs)/home");
+    if (user) router.replace("/");
   }, [user, router]);
 
   function parseSessionId(url: string): string | null {
@@ -67,7 +67,7 @@ export default function Welcome() {
       const sid = parseSessionId(result.url);
       if (!sid) throw new Error("No session_id returned");
       await exchangeSessionId(sid);
-      router.replace("/(tabs)/home");
+      router.replace("/");
     } catch (e: any) {
       setError(e?.message || "Sign-in failed. Please try again.");
     } finally {
@@ -122,8 +122,8 @@ export default function Welcome() {
             </Text>
           ) : null}
           <Text style={styles.fine}>
-            By signing in you agree to be a co-learner. We never sell community
-            language data without consent.
+            By signing in, you agree to be a co-learner. We do not sell
+            community language data without consent.
           </Text>
         </View>
       </SafeAreaView>
