@@ -153,6 +153,21 @@ export default function Home() {
           </TouchableOpacity>
         </View>
 
+        <TouchableOpacity
+          style={styles.resourcesRow}
+          onPress={() => router.push("/resources")}
+          testID="home-resources-tile"
+        >
+          <Ionicons name="library-outline" size={22} color={colors.brand} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.tileTitle}>Reading list & free courses</Text>
+            <Text style={styles.tileSub}>
+              5 free textbooks · CMU OLI · MIT OCW · Harvard edX · Python · Java · HTML · more to come
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color={colors.brand} />
+        </TouchableOpacity>
+
         <Text style={styles.sectionTitle}>Learning modules</Text>
         <Text style={styles.sectionSub}>
           Four modules · {modules.reduce((a, m) => a + m.submodule_count, 0)} sub-modules total,
@@ -232,6 +247,16 @@ const styles = StyleSheet.create({
   tileCream: { backgroundColor: "#FFF3EE", borderColor: colors.brand },
   tileBlue: { backgroundColor: "#E8EEF2", borderColor: "#7D8B93" },
   tileWarm: { backgroundColor: "#F5EBE0", borderColor: "#AB8674" },
+  resourcesRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    backgroundColor: "#FFF3EE",
+    borderColor: colors.brand,
+    borderWidth: 1,
+    borderRadius: radius.card,
+    padding: spacing.md,
+  },
   tileTitle: { color: colors.text, fontSize: 14, fontWeight: "700", marginTop: 4 },
   tileSub: { color: colors.textSecondary, fontSize: 12, lineHeight: 17 },
   sectionTitle: { color: colors.text, fontSize: 20, fontWeight: "700", marginTop: spacing.md },

@@ -129,16 +129,21 @@ export default function ModuleDetail() {
               </View>
             </TouchableOpacity>
           ))}
-          <View style={styles.readingCard}>
+          <TouchableOpacity
+            style={styles.readingCard}
+            onPress={() => router.push("/resources")}
+            testID="module-resources-link"
+          >
             <Ionicons name="library-outline" size={18} color="#8B6F47" />
             <View style={{ flex: 1 }}>
-              <Text style={styles.readingTitle}>Reading List Coming Soon</Text>
+              <Text style={styles.readingTitle}>Reading List & Free Courses</Text>
               <Text style={styles.readingBody}>
-                Verified papers, primers, and offline-friendly excerpts will
-                land here once peer-checked by Community Changers reviewers.
+                Curated free textbooks, open-courseware, and language-specific
+                tutorials — more added as Community Changers vets new sources.
               </Text>
             </View>
-          </View>
+            <Ionicons name="chevron-forward" size={18} color="#8B6F47" />
+          </TouchableOpacity>
         </ScrollView>
       )}
     </SafeAreaView>

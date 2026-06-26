@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Stack, useRouter } from "expo-router";
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Linking, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { storage } from "@/src/utils/storage";
@@ -76,17 +76,67 @@ export default function MissionScreen() {
           Consequently, the sequence starts with an{" "}
           <Text style={styles.b}>Introduction to AI</Text> and ends with{" "}
           <Text style={styles.b}>Advanced HTML and API formation</Text> so
-          students can comprehend that the foundation greatly matters — despite
-          how much fun coding without foundational knowledge might seem.
+          students can comprehend that the foundation greatly matters —
+          despite how much fun coding without foundational knowledge of
+          coding might seem.
         </Text>
 
         <Text style={styles.body}>
-          Reading lists will eventually be added along with links to free open
-          courses where users may obtain additional knowledge. If funds or
-          grants permit on their end or ours, they can seek certification by
-          paying the requisite fees on those platforms with which we have no
-          affiliation.
+          Note that the modules are presented as teasers. Terms with which
+          you are not familiar are used. This is to encourage you to use the
+          reading materials and learn the concepts well. You can copy the
+          link of the YouTube channels and place those links in certain
+          text boxes that will provide you with a transcript or summary.
+          Most of your time on the app will be spent learning and then
+          planning. You will need to be efficient in writing your prompts.
+          Do not fall into the trap of using voice mode. With voice mode,
+          you are using up more tokens than if you write — unless you are
+          a very efficient speaker.
         </Text>
+
+        <Text style={styles.body}>
+          Also be mindful of prompting since published estimates suggest
+          that one U.S. gallon of water could correspond anywhere from a
+          few hundred generated words in high-cost GPT-4-style conditions
+          to tens of thousands of short prompt words in ordinary chatbot
+          use. Shumba et al. (2024) modeled water-use efficiency for data
+          centers across 41 African countries and estimated GPT-4 water
+          consumption for selected AI tasks in 11 representative African
+          countries. The higher the model and the lengthier the prompt,
+          the more water is needed to cool the machines at the centers.
+        </Text>
+
+        <Text style={[styles.body, styles.knowledge]}>Knowledge matters.</Text>
+
+        <Text style={styles.body}>
+          The reading lists will continuously be populated along with the
+          links to the open courses and channels on social media. If funds
+          or grants from private, corporate, or other donors permit, users
+          can seek certification by remitting the requisite fees on the
+          open-course platforms with which we have no affiliation.
+        </Text>
+
+        <TouchableOpacity
+          style={styles.refLinkRow}
+          onPress={() => Linking.openURL("https://arxiv.org/abs/2412.03716")}
+          testID="mission-shumba-ref"
+        >
+          <Ionicons name="library-outline" size={14} color={colors.brandSecondary} />
+          <Text style={styles.refText}>
+            Shumba, N., Tshekiso, O., Li, P., Fanti, G., & Ren, S. (2024). A
+            water efficiency dataset for African data centers. arXiv. https://arxiv.org/abs/2412.03716
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.resourcesBtn]}
+          onPress={() => router.push("/resources")}
+          testID="mission-resources-btn"
+        >
+          <Ionicons name="book-outline" size={18} color={colors.brand} />
+          <Text style={styles.resourcesBtnText}>Open Reading List & Free Courses</Text>
+          <Ionicons name="arrow-forward" size={16} color={colors.brand} />
+        </TouchableOpacity>
 
         <TouchableOpacity
           style={styles.primaryBtn}
@@ -123,6 +173,38 @@ const styles = StyleSheet.create({
   pilotHead: { flexDirection: "row", alignItems: "center", gap: 8 },
   pilotTitle: { color: colors.brand, fontSize: 14, fontWeight: "700", letterSpacing: 0.5 },
   pilotBody: { color: colors.text, fontSize: 13, lineHeight: 20 },
+  knowledge: {
+    color: colors.brand,
+    fontSize: 18,
+    fontWeight: "700",
+    fontStyle: "italic",
+    textAlign: "center",
+    marginVertical: 4,
+  },
+  refLinkRow: {
+    flexDirection: "row",
+    gap: 8,
+    alignItems: "flex-start",
+    backgroundColor: "#EAF1EB",
+    borderColor: colors.brandSecondary,
+    borderWidth: 1,
+    borderRadius: radius.card,
+    padding: spacing.md,
+  },
+  refText: { color: colors.text, fontSize: 11, lineHeight: 16, flex: 1, fontStyle: "italic" },
+  resourcesBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    backgroundColor: "#FFF3EE",
+    borderColor: colors.brand,
+    borderWidth: 1,
+    borderRadius: radius.pill,
+    paddingVertical: 14,
+    paddingHorizontal: spacing.lg,
+    marginTop: 4,
+  },
+  resourcesBtnText: { color: colors.brand, fontSize: 14, fontWeight: "700", flex: 1 },
   primaryBtn: {
     backgroundColor: colors.brand,
     paddingVertical: 16, borderRadius: radius.pill,

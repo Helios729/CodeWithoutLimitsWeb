@@ -41,6 +41,7 @@ from content_extra import (
     income_list_summary,
     income_module_detail,
     programme_overview,
+    resources_payload,
     translator_list_summary,
     translator_module_detail,
 )
@@ -790,6 +791,16 @@ async def glossary_route():
     data = glossary_payload()
     if not data:
         raise HTTPException(404, "Glossary not loaded")
+    return data
+
+
+# ---------- routes: Reading List & Open Online Courses ----------
+
+@api.get("/resources")
+async def resources_route():
+    data = resources_payload()
+    if not data:
+        raise HTTPException(404, "Resources not loaded")
     return data
 
 

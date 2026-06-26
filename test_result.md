@@ -218,6 +218,72 @@ frontend:
         -agent: "main"
         -comment: "Searchable collapsible list. Each term shows short, full definition, examples, and a green Source card with publisher + clickable URL."
         -working: true
+
+
+# ============================================================
+# Iteration 8 — Mission text substitution, Reading List
+# (5 books), Open Online Courses (8 items / 4 groups),
+# Shumba 2024 ref, Knowledge matters tagline
+# ============================================================
+
+backend:
+  - task: "Reading List + Open Online Courses — GET /api/resources"
+    implemented: true
+    working: true
+    file: "/app/backend/curriculum_data/resources.json, /app/backend/content_extra.py, /app/backend/server.py"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "main"
+        -comment: "Loads resources.json. 5 books (Sweigart, Eck, javascript.info, Goodfellow, EbookFoundation) + 4 course groups (University / Python / Java&others / HTML). Endpoint live + manually verified via curl."
+
+frontend:
+  - task: "Mission screen — Shumba 2024 + voice-mode + Knowledge matters + Open Resources CTA"
+    implemented: true
+    working: true
+    file: "/app/frontend/app/mission.tsx"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "main"
+        -comment: "Replaced 'despite how much fun…' tail + reading-list paragraph with user-provided substitution (3 paragraphs), 'Knowledge matters.' italic centered tagline, clickable Shumba et al. (2024) arXiv reference card, and 'Open Reading List & Free Courses' button → /resources."
+  - task: "Resources screen — /resources with Reading List + Open Online Courses"
+    implemented: true
+    working: true
+    file: "/app/frontend/app/resources.tsx"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "main"
+        -comment: "Two sections. Reading List: 5 tappable book cards (title, author, topic chip, note, URL). Open Online Courses: 4 grouped sections with 8 total tappable cards (CMU OLI, MIT OCW, Harvard edX, AskPython, python.org, Codefinity, Alison, Coddy). All open in external browser via Linking."
+  - task: "Module detail footer — Reading List Coming Soon → tappable link to /resources"
+    implemented: true
+    working: true
+    file: "/app/frontend/app/modules/[moduleId]/index.tsx"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "main"
+        -comment: "Was static text; now a TouchableOpacity card titled 'Reading List & Free Courses' that routes to /resources."
+  - task: "Home — Resources row added under tile rows"
+    implemented: true
+    working: true
+    file: "/app/frontend/app/(tabs)/home.tsx"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "main"
+        -comment: "Full-width orange row below the two 2-tile grids: 'Reading list & free courses' → /resources."
+
+agent_communication:
+    - agent: "main"
+      message: |
+        Iteration 8: 3 user-requested changes shipped without breaking iteration 7.
+        Mission text now reads exactly as requested (with the Shumba reference
+        rendered as a tappable arXiv link). /resources serves 5 books + 8 free
+        courses across 4 groups. The 'Reading List Coming Soon' footer on
+        modules now routes to the live screen instead of being a static label.
+
         -agent: "testing"
         -comment: "17 cards; Bandwidth expand shows source URL."
   - task: "Module detail 'Reading List Coming Soon' footer"

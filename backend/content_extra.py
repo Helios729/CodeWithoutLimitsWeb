@@ -29,6 +29,7 @@ def _load_json(filename: str) -> dict:
 INCOME_DOC = _load_json("income_modules.json")
 PROGRAMME_DOC = _load_json("app_content.json")
 GLOSSARY_DOC = _load_json("glossary.json")
+RESOURCES_DOC = _load_json("resources.json")
 
 INCOME_MODULES = INCOME_DOC.get("modules", []) if isinstance(INCOME_DOC, dict) else []
 
@@ -180,3 +181,9 @@ def glossary_payload() -> dict:
     if not isinstance(GLOSSARY_DOC, dict):
         return {}
     return GLOSSARY_DOC
+
+
+def resources_payload() -> dict:
+    if not isinstance(RESOURCES_DOC, dict):
+        return {}
+    return RESOURCES_DOC
