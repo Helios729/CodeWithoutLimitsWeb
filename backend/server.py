@@ -729,6 +729,7 @@ async def module_detail(module_id: str):
         "tagline": m["tagline"],
         "color": m["color"],
         "tabs": m.get("tabs") or [],
+        "survey_form_url": _survey_form_url(m["module_id"]),
         "submodules": [
             {
                 "id": s["id"],
@@ -756,7 +757,10 @@ async def income_module_detail_route(module_id: str):
     m = income_module_detail(module_id)
     if not m:
         raise HTTPException(404, "Unknown income module")
-    return m
+    slug = m.get("slug") or str(m.get("id"))
+    out = dict(m)
+    out["survey_form_url"] = _survey_form_url(f"income__{slug}")
+    return out
 
 
 # ---------- routes: Programme overview (curriculum, workflow, references) ----------
@@ -781,7 +785,9 @@ async def translator_module_route(key: str):
     m = translator_module_detail(key)
     if not m:
         raise HTTPException(404, "Unknown translator module")
-    return m
+    out = dict(m)
+    out["survey_form_url"] = _survey_form_url(f"translator__{key}")
+    return out
 
 
 # ---------- routes: Mini dictionary / glossary ----------
@@ -862,6 +868,14 @@ def _load_survey_form_registry() -> dict:
         return json.loads(p.read_text(encoding="utf-8"))
     except Exception:
         return {"surveys": []}
+
+
+def _survey_form_url(module_id: str) -> str | None:
+    reg = _load_survey_form_registry()
+    for s in reg.get("surveys", []) or []:
+        if isinstance(s, dict) and s.get("module_id") == module_id:
+            return s.get("form_url") or None
+    return None
 
 
 @api.get("/forms")

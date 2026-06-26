@@ -33,6 +33,7 @@ type IncomeModule = {
   languages: string[];
   citations: Citation[];
   notes: string[];
+  survey_form_url?: string | null;
 };
 
 function Section({ icon, label, body }: { icon: any; label: string; body: string }) {
@@ -183,6 +184,23 @@ export default function IncomeDetail() {
               ))}
             </View>
           ) : null}
+
+          {m!.survey_form_url ? (
+            <TouchableOpacity
+              style={styles.surveyCard}
+              onPress={() => openExternal(m!.survey_form_url!)}
+              testID="income-survey-form-btn"
+            >
+              <Ionicons name="clipboard-outline" size={18} color={colors.brandSecondary} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.surveyTitle}>Share your feedback (Google Form)</Text>
+                <Text style={styles.surveyBody}>
+                  Tell Community Changers what worked and what didn&apos;t. 5 minutes.
+                </Text>
+              </View>
+              <Ionicons name="open-outline" size={18} color={colors.brandSecondary} />
+            </TouchableOpacity>
+          ) : null}
         </ScrollView>
       )}
     </SafeAreaView>
@@ -266,5 +284,17 @@ const styles = StyleSheet.create({
   },
   citationRow: { paddingVertical: 4 },
   citationLabel: { color: colors.brand, fontSize: 13, textDecorationLine: "underline" },
+  surveyCard: {
+    flexDirection: "row",
+    gap: 10,
+    alignItems: "center",
+    backgroundColor: "#EAF1EB",
+    borderColor: colors.brandSecondary,
+    borderWidth: 1,
+    borderRadius: radius.card,
+    padding: spacing.md,
+  },
+  surveyTitle: { color: colors.brandSecondary, fontSize: 14, fontWeight: "700" },
+  surveyBody: { color: colors.textSecondary, fontSize: 12, lineHeight: 18, marginTop: 4 },
   error: { color: colors.danger, padding: spacing.lg },
 });

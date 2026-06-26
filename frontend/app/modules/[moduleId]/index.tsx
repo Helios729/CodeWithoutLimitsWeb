@@ -13,6 +13,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import TokenMeter from "@/src/components/TokenMeter";
 import { api, unwrap } from "@/src/lib/api";
+import { openExternal } from "@/src/lib/openExternal";
 import { colors, radius, spacing } from "@/src/theme";
 
 type Sub = {
@@ -31,6 +32,7 @@ type Mod = {
   tagline: string;
   color: string;
   tabs?: string[];
+  survey_form_url?: string | null;
   submodules: Sub[];
 };
 
@@ -129,6 +131,23 @@ export default function ModuleDetail() {
               </View>
             </TouchableOpacity>
           ))}
+          {m!.survey_form_url ? (
+            <TouchableOpacity
+              style={styles.surveyCard}
+              onPress={() => openExternal(m!.survey_form_url!)}
+              testID="module-survey-form-btn"
+            >
+              <Ionicons name="clipboard-outline" size={18} color={colors.brandSecondary} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.surveyTitle}>Share your feedback (Google Form)</Text>
+                <Text style={styles.surveyBody}>
+                  Tell Community Changers what worked and what didn&apos;t. 5 minutes.
+                </Text>
+              </View>
+              <Ionicons name="open-outline" size={18} color={colors.brandSecondary} />
+            </TouchableOpacity>
+          ) : null}
+
           <TouchableOpacity
             style={styles.readingCard}
             onPress={() => router.push("/resources")}
@@ -211,5 +230,18 @@ const styles = StyleSheet.create({
   },
   readingTitle: { color: "#8B6F47", fontSize: 14, fontWeight: "700" },
   readingBody: { color: colors.textSecondary, fontSize: 12, lineHeight: 18, marginTop: 4 },
+  surveyCard: {
+    flexDirection: "row",
+    gap: 10,
+    alignItems: "center",
+    backgroundColor: "#EAF1EB",
+    borderColor: colors.brandSecondary,
+    borderWidth: 1,
+    borderRadius: radius.card,
+    padding: spacing.md,
+    marginTop: 8,
+  },
+  surveyTitle: { color: colors.brandSecondary, fontSize: 14, fontWeight: "700" },
+  surveyBody: { color: colors.textSecondary, fontSize: 12, lineHeight: 18, marginTop: 4 },
   error: { color: colors.danger, padding: spacing.lg },
 });
