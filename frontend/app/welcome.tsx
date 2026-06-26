@@ -134,20 +134,23 @@ export default function Welcome() {
   );
 }
 
-// Misty, atmospheric silhouette of the Kenscoff mountains (Haiti).
-// Four overlapping ridges fade from soft pale grey (far) to deep slate
-// (foreground), with a warm sepia dawn glow at the horizon. Built with
-// react-native-svg so it renders crisp on any pixel density and never
-// pixelates the way the old photo did.
+// Misty silhouette of the Kenscoff mountains (Haiti) — atmospheric
+// perspective in the user's three-colour palette:
+//   • #7D8B93 muted blue-grey  → far range, cool & high
+//   • #C9BAB7 pale rosy-beige  → mid range, warm haze
+//   • #AB8674 muted terracotta → foreground silhouette (the original
+//     "mound" warmth), kept LIGHT so the hero text remains uplifted.
+// Ridgelines are jagged & asymmetric (straight L-segments with one
+// dominant peak per ridge) to read as real Kenscoff peaks rather than
+// sinusoidal hills.
 function KenscoffMountains() {
   const { width, height } = Dimensions.get("window");
-  // Cap the SVG height proportionally so the silhouette feels grounded.
   const svgHeight = Math.max(height, 600);
   return (
     <View style={styles.mountainWrap} pointerEvents="none">
-      {/* Sky: cream → warm sepia haze */}
+      {/* Sky: cream → soft warm beige horizon */}
       <LinearGradient
-        colors={["#F7F5F0", "#F2E6D4", "#E6CDB0"]}
+        colors={["#F7F5F0", "#EFE4D6", "#E2D0BF"]}
         locations={[0, 0.55, 1]}
         style={StyleSheet.absoluteFill}
       />
@@ -159,73 +162,116 @@ function KenscoffMountains() {
         style={styles.mountainSvg}
       >
         <Defs>
-          {/* Warm sepia glow near the horizon */}
-          <SvgLinearGradient id="dawn" x1="0" y1="0.4" x2="0" y2="1">
-            <Stop offset="0" stopColor="#E6B87D" stopOpacity="0" />
-            <Stop offset="0.35" stopColor="#D89A5C" stopOpacity="0.35" />
-            <Stop offset="1" stopColor="#A0826D" stopOpacity="0.55" />
+          {/* Warm rosy-beige horizon glow */}
+          <SvgLinearGradient id="dawn" x1="0" y1="0.3" x2="0" y2="1">
+            <Stop offset="0" stopColor="#C9BAB7" stopOpacity="0" />
+            <Stop offset="0.5" stopColor="#C9BAB7" stopOpacity="0.35" />
+            <Stop offset="1" stopColor="#AB8674" stopOpacity="0.18" />
           </SvgLinearGradient>
-          {/* Furthest ridge — pale misty slate */}
+          {/* Far ridge — muted blue-grey (cool, distant, hazy) */}
           <SvgLinearGradient id="ridge1" x1="0" y1="0" x2="0" y2="1">
-            <Stop offset="0" stopColor="#B6B5AE" stopOpacity="0.55" />
-            <Stop offset="1" stopColor="#9C9A91" stopOpacity="0.85" />
+            <Stop offset="0" stopColor="#7D8B93" stopOpacity="0.55" />
+            <Stop offset="1" stopColor="#7D8B93" stopOpacity="0.75" />
           </SvgLinearGradient>
-          {/* Mid ridge — sepia-warmed slate */}
+          {/* Mid ridge — pale rosy-beige (warmer than far, still hazy) */}
           <SvgLinearGradient id="ridge2" x1="0" y1="0" x2="0" y2="1">
-            <Stop offset="0" stopColor="#8E8576" stopOpacity="0.85" />
-            <Stop offset="1" stopColor="#6E6657" stopOpacity="1" />
+            <Stop offset="0" stopColor="#C9BAB7" stopOpacity="0.78" />
+            <Stop offset="1" stopColor="#B7A4A0" stopOpacity="0.92" />
           </SvgLinearGradient>
-          {/* Near ridge — deeper sepia slate */}
+          {/* Foreground ridge — muted terracotta (light at the crest,
+              richer at the base — never muddy / never opaque-dark) */}
           <SvgLinearGradient id="ridge3" x1="0" y1="0" x2="0" y2="1">
-            <Stop offset="0" stopColor="#6B5E4A" stopOpacity="1" />
-            <Stop offset="1" stopColor="#4F4636" stopOpacity="1" />
-          </SvgLinearGradient>
-          {/* Foreground silhouette — darkest, slate grey w/ warm undertone */}
-          <SvgLinearGradient id="ridge4" x1="0" y1="0" x2="0" y2="1">
-            <Stop offset="0" stopColor="#3F3A30" stopOpacity="1" />
-            <Stop offset="1" stopColor="#2C2922" stopOpacity="1" />
+            <Stop offset="0" stopColor="#C9A38C" stopOpacity="0.85" />
+            <Stop offset="1" stopColor="#AB8674" stopOpacity="0.95" />
           </SvgLinearGradient>
         </Defs>
 
         {/* Horizon dawn wash */}
-        <Path d="M0,180 L800,180 L800,600 L0,600 Z" fill="url(#dawn)" />
+        <Path d="M0,210 L800,210 L800,600 L0,600 Z" fill="url(#dawn)" />
 
-        {/* Far ridge — gentle rolling, deeper into the haze */}
+        {/* Far ridge — muted blue-grey. Jagged, asymmetric, one dominant
+            peak slightly right of centre. Sharp diagonals, not sinusoidal. */}
         <Path
-          d="M0,260
-             C 60,220 110,250 160,232
-             C 220,210 260,238 310,220
-             C 360,205 400,232 450,218
-             C 510,200 550,232 600,218
-             C 660,202 720,232 800,212
+          d="M 0,360
+             L 45,335
+             L 95,318
+             L 140,295
+             L 185,308
+             L 235,272
+             L 285,238
+             L 330,205
+             L 365,178
+             L 405,150
+             L 442,128
+             L 478,165
+             L 510,195
+             L 548,215
+             L 595,182
+             L 640,228
+             L 690,260
+             L 740,278
+             L 800,295
              L 800,600 L 0,600 Z"
           fill="url(#ridge1)"
         />
 
-        {/* Mid ridge — defined but softened Kenscoff peaks */}
+        {/* Mid ridge — rosy-beige. Lower amplitude, asymmetric again,
+            peak offset to the left to interlock with the far ridge. */}
         <Path
-          d="M 0,360 Q 70,300 100,319 Q 130,338 160,308 Q 190,278 215,305 Q 240,332 270,311 Q 300,290 330,309 Q 360,328 390,301 Q 420,274 450,305 Q 480,336 510,319 Q 540,302 570,320 Q 600,338 630,313 Q 660,288 690,311 Q 720,334 760,319 L 800,304 L 800,600 L 0,600 Z"
+          d="M 0,440
+             L 40,425
+             L 95,390
+             L 145,360
+             L 192,332
+             L 232,308
+             L 270,280
+             L 305,310
+             L 348,340
+             L 392,308
+             L 438,348
+             L 485,330
+             L 532,365
+             L 580,348
+             L 628,378
+             L 678,360
+             L 728,395
+             L 778,410
+             L 800,418
+             L 800,600 L 0,600 Z"
           fill="url(#ridge2)"
         />
 
-        {/* Near ridge — rolling shoulders */}
+        {/* Foreground ridge — muted terracotta. Short & light so it
+            never covers the hero copy. Asymmetric small foothills with a
+            single warm crest right-of-centre. */}
         <Path
-          d="M 0,440 Q 50,408 80,388 Q 110,368 140,394 Q 170,420 200,386 Q 230,352 260,382 Q 290,412 320,390 Q 350,368 380,354 Q 410,340 440,374 Q 470,408 500,384 Q 530,360 560,386 Q 590,412 620,391 Q 650,370 685,391 Q 720,412 760,400 L 800,388 L 800,600 L 0,600 Z"
+          d="M 0,538
+             L 65,525
+             L 130,532
+             L 200,512
+             L 268,520
+             L 335,498
+             L 395,485
+             L 445,510
+             L 498,495
+             L 552,478
+             L 605,505
+             L 668,495
+             L 728,515
+             L 780,508
+             L 800,512
+             L 800,600 L 0,600 Z"
           fill="url(#ridge3)"
-        />
-
-        {/* Foreground silhouette — softly rolling */}
-        <Path
-          d="M 0,520 Q 60,490 95,504 Q 130,518 165,498 Q 200,478 240,497 Q 280,516 320,499 Q 360,482 400,500 Q 440,518 480,502 Q 520,486 560,503 Q 600,520 640,505 Q 680,490 720,504 Q 760,518 780,512 L 800,506 L 800,600 L 0,600 Z"
-          fill="url(#ridge4)"
         />
       </Svg>
 
-      {/* Soft top-down mist veil to lift the hero text off the ridges */}
+      {/* Light top-down haze to lift the hero text above the distant
+          peaks. Lower opacity than before because the foreground is now
+          terracotta-light, not slate-dark, so we need less protection. */}
       <LinearGradient
         colors={[
-          "rgba(247,245,240,0.55)",
-          "rgba(247,245,240,0.18)",
+          "rgba(247,245,240,0.42)",
+          "rgba(247,245,240,0.12)",
           "rgba(247,245,240,0)",
         ]}
         locations={[0, 0.4, 0.65]}
