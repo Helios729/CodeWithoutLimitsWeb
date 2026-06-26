@@ -141,6 +141,10 @@ export default function Programme() {
                   target = "/(tabs)/learn";
                 } else if (themeLc.includes("quiz") || themeLc.includes("assess")) {
                   target = "/(tabs)/quiz";
+                } else if (themeLc.includes("ai") || themeLc.includes("basic") || themeLc.includes("foundation")) {
+                  target = "/(tabs)/learn";
+                } else if (themeLc.includes("packag") || themeLc.includes("pricing") || themeLc.includes("sell")) {
+                  target = "/income";
                 }
                 const Row: any = target ? TouchableOpacity : View;
                 const rowProps: any = target
