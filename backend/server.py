@@ -37,9 +37,12 @@ from emergentintegrations.llm.chat import LlmChat, UserMessage
 
 import quiz_pool
 from content_extra import (
+    glossary_payload,
     income_list_summary,
     income_module_detail,
     programme_overview,
+    translator_list_summary,
+    translator_module_detail,
 )
 from curriculum import (
     MODULES,
@@ -316,6 +319,7 @@ async def list_topics():
                 "source_count": t["question_count"],
                 "institutions": [t["module_title"]],
                 "coming_soon": t.get("coming_soon", False),
+                "teaser": t.get("teaser", ""),
             }
             for t in pool_topics
         ]}
@@ -761,6 +765,31 @@ async def programme_route():
     data = programme_overview()
     if not data:
         raise HTTPException(404, "Programme content not loaded")
+    return data
+
+
+# ---------- routes: Open-source translator modules (8 languages, verified) ----------
+
+@api.get("/translator")
+async def list_translator_modules():
+    return translator_list_summary()
+
+
+@api.get("/translator/{key}")
+async def translator_module_route(key: str):
+    m = translator_module_detail(key)
+    if not m:
+        raise HTTPException(404, "Unknown translator module")
+    return m
+
+
+# ---------- routes: Mini dictionary / glossary ----------
+
+@api.get("/glossary")
+async def glossary_route():
+    data = glossary_payload()
+    if not data:
+        raise HTTPException(404, "Glossary not loaded")
     return data
 
 

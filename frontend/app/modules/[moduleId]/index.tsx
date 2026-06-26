@@ -129,6 +129,16 @@ export default function ModuleDetail() {
               </View>
             </TouchableOpacity>
           ))}
+          <View style={styles.readingCard}>
+            <Ionicons name="library-outline" size={18} color="#8B6F47" />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.readingTitle}>Reading List Coming Soon</Text>
+              <Text style={styles.readingBody}>
+                Verified papers, primers, and offline-friendly excerpts will
+                land here once peer-checked by Community Changers reviewers.
+              </Text>
+            </View>
+          </View>
         </ScrollView>
       )}
     </SafeAreaView>
@@ -183,5 +193,18 @@ const styles = StyleSheet.create({
   tabActive: { backgroundColor: colors.brand },
   tabText: { color: colors.textSecondary, fontSize: 13, fontWeight: "600" },
   tabTextActive: { color: "#fff", fontWeight: "700" },
+  readingCard: {
+    flexDirection: "row",
+    gap: 10,
+    alignItems: "flex-start",
+    backgroundColor: "#F5EBE0",
+    borderColor: "#AB8674",
+    borderWidth: 1,
+    borderRadius: radius.card,
+    padding: spacing.md,
+    marginTop: 8,
+  },
+  readingTitle: { color: "#8B6F47", fontSize: 14, fontWeight: "700" },
+  readingBody: { color: colors.textSecondary, fontSize: 12, lineHeight: 18, marginTop: 4 },
   error: { color: colors.danger, padding: spacing.lg },
 });

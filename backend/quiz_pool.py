@@ -44,6 +44,7 @@ def list_quiz_topics() -> list[dict]:
         mod_id = q.get("module_id", "")
         mod_title = (q.get("module_title", "") or "").rstrip(" -Q").rstrip("-")
         mod_coming = q.get("status") == "coming_soon"
+        mod_teaser = q.get("teaser", "") or ""
         for mq in q.get("mini_quizzes", []):
             mq_num = mq.get("mq", "")
             mq_coming = mod_coming or mq.get("status") == "coming_soon" or not mq.get("questions")
@@ -54,6 +55,7 @@ def list_quiz_topics() -> list[dict]:
                 "source_lesson": mq.get("source_lesson", ""),
                 "question_count": len(mq.get("questions", [])),
                 "coming_soon": mq_coming,
+                "teaser": mq.get("teaser", "") or mod_teaser if mq_coming else "",
                 "institutions": [],
             })
     return topics

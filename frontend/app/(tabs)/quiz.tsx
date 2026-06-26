@@ -24,6 +24,7 @@ type Topic = {
   source_count: number;
   institutions: string[];
   coming_soon?: boolean;
+  teaser?: string;
 };
 
 export default function QuizHub() {
@@ -114,7 +115,7 @@ export default function QuizHub() {
                 <Ionicons name={t.coming_soon ? "time-outline" : "library-outline"} size={14} color={colors.textSecondary} />
                 <Text style={styles.meta}>
                   {t.coming_soon
-                    ? "Soon to come — quiz pool in development"
+                    ? `Soon to come${t.teaser ? ` (${t.teaser})` : " — quiz pool in development"}`
                     : `${t.source_count} question${t.source_count === 1 ? "" : "s"} · ${t.institutions.join(", ")}`}
                 </Text>
               </View>

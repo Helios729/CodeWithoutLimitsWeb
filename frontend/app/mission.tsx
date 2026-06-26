@@ -29,6 +29,20 @@ export default function MissionScreen() {
         <Text style={styles.eyebrow}>Before you begin</Text>
         <Text style={styles.h1}>Why Code Without Limits exists</Text>
 
+        <View style={styles.pilotBox} testID="mission-pilot-box">
+          <View style={styles.pilotHead}>
+            <Ionicons name="construct-outline" size={18} color={colors.brand} />
+            <Text style={styles.pilotTitle}>This is a pilot app.</Text>
+          </View>
+          <Text style={styles.pilotBody}>
+            Like the communities it serves, Community Changers conducts
+            continuous self-checks — surveys, user feedback, and internal
+            review — to catch broken links, omissions, and errors. Your
+            feedback is welcome at every turn. Tap the survey button at the
+            end of any module, and flag anything that looks off.
+          </Text>
+        </View>
+
         <Text style={styles.body}>
           The core mission for creating this app is to mitigate the digital, and
           now AI, divide. AI was used as a co-creator for this app —
@@ -98,6 +112,17 @@ const styles = StyleSheet.create({
   h1: { color: colors.text, fontSize: 26, fontWeight: "700", lineHeight: 32 },
   body: { color: colors.text, fontSize: 15, lineHeight: 23 },
   b: { fontWeight: "700" },
+  pilotBox: {
+    backgroundColor: "#FFF3EE",
+    borderColor: colors.brand,
+    borderWidth: 1,
+    borderRadius: radius.card,
+    padding: spacing.md,
+    gap: 8,
+  },
+  pilotHead: { flexDirection: "row", alignItems: "center", gap: 8 },
+  pilotTitle: { color: colors.brand, fontSize: 14, fontWeight: "700", letterSpacing: 0.5 },
+  pilotBody: { color: colors.text, fontSize: 13, lineHeight: 20 },
   primaryBtn: {
     backgroundColor: colors.brand,
     paddingVertical: 16, borderRadius: radius.pill,

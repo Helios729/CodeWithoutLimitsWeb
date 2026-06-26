@@ -71,6 +71,20 @@ export default function Home() {
         contentContainerStyle={styles.scroll}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
+        <View style={styles.pilotBanner} testID="home-pilot-banner">
+          <Ionicons name="construct-outline" size={18} color={colors.brand} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.pilotTitle}>This is a pilot app.</Text>
+            <Text style={styles.pilotBody}>
+              Like the communities it serves, Community Changers conducts
+              continuous self-checks — surveys, user feedback, and internal
+              review — to catch broken links, omissions, and errors. Your
+              feedback is welcome at every turn. Use the survey at the end
+              of any module, or tap any item that looks off.
+            </Text>
+          </View>
+        </View>
+
         {usage?.blocked ? (
           <View style={styles.alert} testID="quota-alert">
             <Ionicons name="warning-outline" size={20} color={colors.brand} />
@@ -90,8 +104,8 @@ export default function Home() {
 
         <TouchableOpacity style={styles.cta} onPress={() => router.push("/(tabs)/quiz")} testID="home-start-quiz-btn">
           <View style={{ flex: 1 }}>
-            <Text style={styles.ctaEyebrow}>Start a 15-minute sprint</Text>
-            <Text style={styles.ctaTitle}>Try a 10-question quiz</Text>
+            <Text style={styles.ctaEyebrow}>Quick 5-minute sprint</Text>
+            <Text style={styles.ctaTitle}>Try a 5-question quiz</Text>
             <Text style={styles.ctaSub}>Sourced from MIT, Stanford, Caltech, CMU, Berkeley.</Text>
           </View>
           <Ionicons name="arrow-forward" size={24} color="#fff" />
@@ -105,7 +119,7 @@ export default function Home() {
           >
             <Ionicons name="cash-outline" size={22} color={colors.brandSecondary} />
             <Text style={styles.tileTitle}>Income & Asset Bank</Text>
-            <Text style={styles.tileSub}>18 monetisable digital-asset modules</Text>
+            <Text style={styles.tileSub}>17 monetisable digital-asset modules</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.tile, styles.tileCream]}
@@ -115,6 +129,27 @@ export default function Home() {
             <Ionicons name="book-outline" size={22} color={colors.brand} />
             <Text style={styles.tileTitle}>About this programme</Text>
             <Text style={styles.tileSub}>Curriculum · workflow · references</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.tileRow}>
+          <TouchableOpacity
+            style={[styles.tile, styles.tileBlue]}
+            onPress={() => router.push("/translator")}
+            testID="home-translator-tile"
+          >
+            <Ionicons name="language-outline" size={22} color="#4A5D6E" />
+            <Text style={styles.tileTitle}>Translations</Text>
+            <Text style={styles.tileSub}>8 open-source language modules</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.tile, styles.tileWarm]}
+            onPress={() => router.push("/glossary")}
+            testID="home-glossary-tile"
+          >
+            <Ionicons name="book" size={22} color="#8B6F47" />
+            <Text style={styles.tileTitle}>Mini dictionary</Text>
+            <Text style={styles.tileSub}>Words to know · cited sources</Text>
           </TouchableOpacity>
         </View>
 
@@ -164,6 +199,18 @@ const styles = StyleSheet.create({
   eyebrow: { color: colors.brand, fontSize: 11, fontWeight: "700", letterSpacing: 2, textTransform: "uppercase" },
   hello: { color: colors.text, fontSize: 24, fontWeight: "700" },
   scroll: { padding: spacing.lg, paddingTop: 0, gap: spacing.lg },
+  pilotBanner: {
+    flexDirection: "row",
+    gap: 10,
+    alignItems: "flex-start",
+    backgroundColor: "#FFF3EE",
+    borderColor: colors.brand,
+    borderWidth: 1,
+    borderRadius: radius.card,
+    padding: spacing.md,
+  },
+  pilotTitle: { color: colors.brand, fontSize: 13, fontWeight: "700", letterSpacing: 0.5 },
+  pilotBody: { color: colors.text, fontSize: 12, lineHeight: 18, marginTop: 4 },
   alert: { flexDirection: "row", alignItems: "center", gap: spacing.sm, backgroundColor: "#FFF3EE", borderColor: colors.brand, borderWidth: 1, borderRadius: radius.card, padding: spacing.md },
   alertText: { flex: 1, color: colors.text, fontSize: 13 },
   alertBtn: { backgroundColor: colors.brand, paddingHorizontal: 14, paddingVertical: 8, borderRadius: radius.pill },
@@ -183,6 +230,8 @@ const styles = StyleSheet.create({
   },
   tileGreen: { backgroundColor: "#EAF1EB", borderColor: colors.brandSecondary },
   tileCream: { backgroundColor: "#FFF3EE", borderColor: colors.brand },
+  tileBlue: { backgroundColor: "#E8EEF2", borderColor: "#7D8B93" },
+  tileWarm: { backgroundColor: "#F5EBE0", borderColor: "#AB8674" },
   tileTitle: { color: colors.text, fontSize: 14, fontWeight: "700", marginTop: 4 },
   tileSub: { color: colors.textSecondary, fontSize: 12, lineHeight: 17 },
   sectionTitle: { color: colors.text, fontSize: 20, fontWeight: "700", marginTop: spacing.md },

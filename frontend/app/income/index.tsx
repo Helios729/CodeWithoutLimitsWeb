@@ -28,6 +28,8 @@ type IncomeListResp = {
   title: string;
   description: string;
   count: number;
+  total_cards?: number;
+  duplication_note?: string;
   modules: IncomeModSummary[];
 };
 
@@ -72,36 +74,46 @@ export default function IncomeIndex() {
           <Text style={styles.subCount}>
             {data!.count} monetisable digital-asset modules
           </Text>
-          {data!.modules.map((m) => (
-            <TouchableOpacity
-              key={m.id}
-              style={styles.card}
-              onPress={() => router.push(`/income/${m.id}`)}
-              testID={`income-module-${m.id}`}
-            >
-              <View style={styles.cardHeader}>
-                <View style={styles.numBadge}>
-                  <Text style={styles.numText}>{m.id}</Text>
+          {data!.modules.map((m, idx) => (
+            <React.Fragment key={m.id}>
+              {idx === data!.modules.length - 1 && data!.duplication_note ? (
+                <View style={styles.dupCard}>
+                  <View style={styles.dupHeader}>
+                    <Ionicons name="git-compare-outline" size={16} color={colors.brandSecondary} />
+                    <Text style={styles.dupLabel}>Why is Task 18 the same as Task 2?</Text>
+                  </View>
+                  <Text style={styles.dupBody}>{data!.duplication_note}</Text>
                 </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.role}>{m.role_label}</Text>
-                  <Text style={styles.cardTitle}>{m.title}</Text>
+              ) : null}
+              <TouchableOpacity
+                style={styles.card}
+                onPress={() => router.push(`/income/${m.id}`)}
+                testID={`income-module-${m.id}`}
+              >
+                <View style={styles.cardHeader}>
+                  <View style={styles.numBadge}>
+                    <Text style={styles.numText}>{m.id}</Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.role}>{m.role_label}</Text>
+                    <Text style={styles.cardTitle}>{m.title}</Text>
+                  </View>
                 </View>
-              </View>
-              <Text style={styles.cardBody} numberOfLines={3}>
-                {m.asset}
-              </Text>
-              <View style={styles.tagRow}>
-                {m.languages.slice(0, 4).map((l) => (
-                  <Text key={l} style={styles.tag}>
-                    {l}
-                  </Text>
-                ))}
-                {m.languages.length > 4 ? (
-                  <Text style={styles.tag}>+{m.languages.length - 4}</Text>
-                ) : null}
-              </View>
-            </TouchableOpacity>
+                <Text style={styles.cardBody} numberOfLines={3}>
+                  {m.asset}
+                </Text>
+                <View style={styles.tagRow}>
+                  {m.languages.slice(0, 4).map((l) => (
+                    <Text key={l} style={styles.tag}>
+                      {l}
+                    </Text>
+                  ))}
+                  {m.languages.length > 4 ? (
+                    <Text style={styles.tag}>+{m.languages.length - 4}</Text>
+                  ) : null}
+                </View>
+              </TouchableOpacity>
+            </React.Fragment>
           ))}
         </ScrollView>
       )}
@@ -145,6 +157,18 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   cardHeader: { flexDirection: "row", alignItems: "center", gap: 12 },
+  dupCard: {
+    backgroundColor: "#EAF1EB",
+    borderColor: colors.brandSecondary,
+    borderWidth: 1,
+    borderRadius: radius.card,
+    padding: spacing.md,
+    gap: 6,
+    marginTop: 6,
+  },
+  dupHeader: { flexDirection: "row", alignItems: "center", gap: 8 },
+  dupLabel: { color: colors.brandSecondary, fontSize: 12, fontWeight: "700" },
+  dupBody: { color: colors.text, fontSize: 13, lineHeight: 20 },
   numBadge: {
     backgroundColor: colors.brand,
     borderRadius: 999,
