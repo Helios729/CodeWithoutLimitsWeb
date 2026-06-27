@@ -3,22 +3,25 @@ import { Stack, useRouter, useLocalSearchParams } from "expo-router";
 import { Linking, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { useAuth } from "@/src/context/AuthContext";
 import { storage } from "@/src/utils/storage";
 import { colors, radius, spacing } from "@/src/theme";
 import { openExternal } from "@/src/lib/openExternal";
-
-const SEEN_KEY = "mission_seen";
 
 // Shown once after sign-in. Persists a flag so returning learners go
 // straight to Home. The "I understand" button is the only way forward,
 // ensuring every learner has at least scrolled past the mission.
 export default function MissionScreen() {
   const router = useRouter();
+  const { user } = useAuth();
   const params = useLocalSearchParams<{ revisit?: string }>();
   const isRevisit = params.revisit === "1";
 
   async function continueIn() {
-    if (!isRevisit) await storage.setItem(SEEN_KEY, "1");
+    if (!isRevisit && user) {
+      const uid = (user as any).id || (user as any).user_id || user.email;
+      await storage.setItem(`mission_seen:${uid}`, "1");
+    }
     if (isRevisit) router.back();
     else router.replace("/(tabs)/home");
   }

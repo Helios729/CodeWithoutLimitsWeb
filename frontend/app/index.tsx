@@ -14,9 +14,27 @@ export default function Index() {
   const [seenMission, setSeenMission] = useState<boolean | null>(null);
 
   useEffect(() => {
-    storage.getItem("core_mission_seen", "").then((v) => setSeenCore(!!v));
-    storage.getItem("mission_seen", "").then((v) => setSeenMission(!!v));
-  }, []);
+    // Reset to "checking" whenever the user changes so we always re-read
+    // storage for the new account (otherwise the previous user's flags
+    // would carry over on the same device).
+    setSeenCore(null);
+    setSeenMission(null);
+    if (!user) {
+      // Signed out — Redirect path doesn't depend on flags. Set non-null
+      // so the loading spinner gives way immediately.
+      setSeenCore(false);
+      setSeenMission(false);
+      return;
+    }
+    const uid = (user as any).id || (user as any).user_id || user.email;
+    Promise.all([
+      storage.getItem(`core_mission_seen:${uid}`, ""),
+      storage.getItem(`mission_seen:${uid}`, ""),
+    ]).then(([core, mission]) => {
+      setSeenCore(!!core);
+      setSeenMission(!!mission);
+    });
+  }, [user]);
 
   if (loading || seenCore === null || seenMission === null) {
     return (

@@ -4,10 +4,9 @@ import React from "react";
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { useAuth } from "@/src/context/AuthContext";
 import { storage } from "@/src/utils/storage";
 import { colors, radius, spacing } from "@/src/theme";
-
-const SEEN_KEY = "core_mission_seen";
 
 // Standalone Core Mission Statement.
 //
@@ -17,13 +16,15 @@ const SEEN_KEY = "core_mission_seen";
 // "Continue" to move on, so the screen never "flashes" past anyone.
 export default function CoreMissionScreen() {
   const router = useRouter();
+  const { user } = useAuth();
   const params = useLocalSearchParams<{ revisit?: string }>();
   const isRevisit = params.revisit === "1";
 
   async function continueIn() {
-    if (!isRevisit) await storage.setItem(SEEN_KEY, "1");
-    // First time → onward to the pilot-disclaimer mission screen.
-    // Revisits (from Account) → just go back to the previous screen.
+    if (!isRevisit && user) {
+      const uid = (user as any).id || (user as any).user_id || user.email;
+      await storage.setItem(`core_mission_seen:${uid}`, "1");
+    }
     if (isRevisit) router.back();
     else router.replace("/mission");
   }
