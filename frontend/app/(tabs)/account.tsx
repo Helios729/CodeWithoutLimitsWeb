@@ -207,6 +207,32 @@ export default function Account() {
             {error}
           </Text>
         ) : null}
+
+        <TouchableOpacity
+          style={styles.missionLink}
+          onPress={() => router.push({ pathname: "/core-mission", params: { revisit: "1" } } as any)}
+          testID="account-core-mission-btn"
+        >
+          <Ionicons name="compass-outline" size={18} color={colors.brand} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.missionLinkTitle}>Our core mission</Text>
+            <Text style={styles.missionLinkBody}>Revisit the mission statement anytime.</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.missionLink}
+          onPress={() => router.push({ pathname: "/mission", params: { revisit: "1" } } as any)}
+          testID="account-mission-btn"
+        >
+          <Ionicons name="construct-outline" size={18} color={colors.brand} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.missionLinkTitle}>About this pilot</Text>
+            <Text style={styles.missionLinkBody}>Pilot disclaimer, water/energy notes, references.</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
+        </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
   );
@@ -215,6 +241,18 @@ export default function Account() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bg },
   scroll: { padding: spacing.lg, gap: spacing.lg, paddingBottom: 40 },
+  missionLink: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderWidth: 1,
+    borderRadius: radius.card,
+    padding: spacing.md,
+  },
+  missionLinkTitle: { color: colors.text, fontSize: 15, fontWeight: "700" },
+  missionLinkBody: { color: colors.textSecondary, fontSize: 12, marginTop: 2 },
   profile: {
     flexDirection: "row",
     alignItems: "center",

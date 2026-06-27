@@ -90,16 +90,23 @@ export default function Programme() {
               </View>
               <Text style={styles.sectionBody}>{d!.overview.summary}</Text>
               {(d!.overview.design_principles || []).length > 0 ? (
-                <View style={styles.tagRow}>
-                  {d!.overview!.design_principles!.map((p, i) => (
-                    <Text key={i} style={styles.tag}>{p}</Text>
-                  ))}
-                </View>
+                <>
+                  <Text style={[styles.sectionBody, { color: colors.brandSecondary, fontWeight: "700", fontSize: 11, letterSpacing: 0.8, textTransform: "uppercase", marginTop: 8 }]}>
+                    Design principles
+                  </Text>
+                  <View style={[styles.tagRow, { marginBottom: 12 }]}>
+                    {d!.overview!.design_principles!.map((p, i) => (
+                      <Text key={i} style={styles.tag}>{p}</Text>
+                    ))}
+                  </View>
+                </>
               ) : null}
               {d!.overview.philosophy ? (
-                <Text style={[styles.sectionBody, { fontStyle: "italic", marginTop: 8 }]}>
-                  {d!.overview.philosophy}
-                </Text>
+                <View style={{ borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 10, marginTop: 4 }}>
+                  <Text style={[styles.sectionBody, { fontStyle: "italic" }]}>
+                    {d!.overview.philosophy}
+                  </Text>
+                </View>
               ) : null}
             </View>
           ) : null}

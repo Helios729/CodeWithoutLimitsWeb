@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import { Stack, useRouter } from "expo-router";
+import { Stack, useRouter, useLocalSearchParams } from "expo-router";
 import { Linking, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -14,10 +14,13 @@ const SEEN_KEY = "mission_seen";
 // ensuring every learner has at least scrolled past the mission.
 export default function MissionScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ revisit?: string }>();
+  const isRevisit = params.revisit === "1";
 
   async function continueIn() {
-    await storage.setItem(SEEN_KEY, "1");
-    router.replace("/(tabs)/home");
+    if (!isRevisit) await storage.setItem(SEEN_KEY, "1");
+    if (isRevisit) router.back();
+    else router.replace("/(tabs)/home");
   }
 
   return (
