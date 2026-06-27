@@ -125,7 +125,7 @@ export default function QuizRunner() {
           <Ionicons name="chevron-back" size={22} color={colors.text} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
-          <Text style={styles.eyebrow}>10 questions</Text>
+          <Text style={styles.eyebrow}>5 questions</Text>
           <Text style={styles.h1} numberOfLines={1}>
             {topicTitle || "Loading…"}
           </Text>

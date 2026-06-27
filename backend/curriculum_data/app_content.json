@@ -278,27 +278,28 @@
     ]
   },
   "languages": {
-    "instruction_language": "English",
-    "note": "The app teaches users how to build each asset step-by-step in English; students can turn on translator mode using valid and authentic translation apps.",
+    "instruction_language": "English (default) — with translator mode for community languages",
+    "note": "Code Without Limits is built primarily for use in English, French, Haitian Creole, Brazilian Portuguese, Spanish, Bambara, and Wolof. Lessons can be followed in any of these languages using the in-app translator mode and the open-source language modules.",
     "translator_mode_core": [
       "French",
+      "Haitian Creole",
       "Brazilian Portuguese",
-      "Portuguese",
-      "Post-Colonial Spanish",
-      "Haitian Creole"
+      "Spanish",
+      "Wolof"
     ],
     "translator_mode_best_effort": [
-      "Wolof",
-      "Twi",
       "Bambara",
+      "Twi",
       "Garifuna",
       "Fon"
     ],
     "programme_languages": [
+      "English",
       "French",
+      "Haitian Creole",
       "Brazilian Portuguese",
       "Spanish",
-      "English",
+      "Bambara",
       "Wolof"
     ]
   },

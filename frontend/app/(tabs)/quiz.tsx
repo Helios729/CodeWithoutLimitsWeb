@@ -75,7 +75,7 @@ export default function QuizHub() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
         <Text style={styles.lead}>
-          Each quiz is exactly 10 questions, generated from publicly available
+          Each quiz is exactly 5 questions, generated from publicly available
           materials at MIT, Stanford, Caltech, CMU, UC Berkeley, ERIC, NSF, and
           data.gov — with full source citations.
         </Text>
