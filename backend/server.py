@@ -1446,6 +1446,21 @@ async def list_agents():
 # ---------- mount + startup ----------
 app.include_router(api)
 
+
+# Root + healthz endpoints (no /api prefix) so Kubernetes readiness /
+# liveness probes succeed regardless of where they hit. Without these,
+# the production probe was hitting `/` and getting a 404 every cycle,
+# which caused the deployment supervisor to mark the pod unhealthy.
+@app.get("/")
+async def root_ok():
+    return {"status": "ok", "service": "Code Without Limits API"}
+
+
+@app.get("/healthz")
+async def healthz():
+    return {"status": "ok"}
+
+
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
@@ -1471,9 +1486,15 @@ async def on_startup():
     await db.scraped_content.create_index("url", unique=True)
     await db.quizzes.create_index("quiz_id", unique=True)
     await db.stripe_events.create_index("event_id", unique=True)
-    # Pre-seed scraping in the background — never blocks startup.
-    import asyncio
-    asyncio.create_task(preseed_all(db))
+    # Pre-seed scraping is OFF by default in production. It was useful when
+    # quizzes were generated live; the new quiz pool reads from local JSON
+    # files (see quiz_pool.py), so the scraped cache is dead weight at boot.
+    # External HTTPS calls during startup also risk tripping readiness
+    # probes if egress is rate-limited. Set ENABLE_PRESEED=true to re-enable.
+    if os.environ.get("ENABLE_PRESEED", "").lower() in ("1", "true", "yes"):
+        import asyncio
+        asyncio.create_task(preseed_all(db))
+        logger.info("Pre-seed task scheduled (ENABLE_PRESEED is on)")
     logger.info("Code Without Limits API ready")
 
 
