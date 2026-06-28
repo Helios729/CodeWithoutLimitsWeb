@@ -39,6 +39,7 @@ type Ctx = {
   refresh: () => Promise<void>;
   refreshUsage: () => Promise<void>;
   exchangeSessionId: (sessionId: string) => Promise<User>;
+  demoSignIn: () => Promise<User>;
   signOut: () => Promise<void>;
 };
 
@@ -96,6 +97,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [refreshUsage],
   );
 
+  const demoSignIn = useCallback(async () => {
+    // Skips Google OAuth — backend issues a short-lived session for a
+    // shared "Demo Presenter" account already provisioned at `monthly`
+    // tier so every feature is reachable during a presentation.
+    const { data } = await api.post<{ token: string; user: User }>(
+      "/auth/demo",
+      {},
+    );
+    await setToken(data.token);
+    setUser(data.user);
+    await refreshUsage();
+    return data.user;
+  }, [refreshUsage]);
+
   const signOut = useCallback(async () => {
     try {
       await api.post("/auth/logout");
@@ -137,9 +152,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       refresh,
       refreshUsage,
       exchangeSessionId,
+      demoSignIn,
       signOut,
     }),
-    [user, usage, loading, refresh, refreshUsage, exchangeSessionId, signOut],
+    [user, usage, loading, refresh, refreshUsage, exchangeSessionId, demoSignIn, signOut],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

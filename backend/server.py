@@ -280,6 +280,77 @@ async def auth_logout(authorization: Optional[str] = Header(default=None)):
     return {"ok": True}
 
 
+@api.post("/auth/demo")
+async def auth_demo():
+    """Presentation / Demo Mode — skips Google OAuth and issues a session
+    token for a stable demo user with a `monthly` tier account so every
+    feature is reachable (250 pooled prompts/mo). Disable in production
+    by setting DEMO_MODE_ENABLED=false in the backend .env."""
+    if os.getenv("DEMO_MODE_ENABLED", "true").lower() not in ("1", "true", "yes"):
+        raise HTTPException(403, "Demo mode is disabled")
+
+    now = datetime.now(timezone.utc)
+    demo_email = "demo@codewithoutlimits.app"
+    existing = await db.users.find_one({"email": demo_email}, {"_id": 0})
+
+    if existing:
+        user_id = existing["user_id"]
+        account_id = existing.get("account_id") or user_id
+    else:
+        user_id = f"user_demo_{uuid.uuid4().hex[:8]}"
+        account_id = f"acct_demo_{uuid.uuid4().hex[:8]}"
+        await db.users.insert_one({
+            "user_id": user_id,
+            "email": demo_email,
+            "name": "Demo Presenter",
+            "picture": None,
+            "account_id": account_id,
+            "is_account_owner": True,
+            "is_demo": True,
+            "created_at": now,
+            "updated_at": now,
+        })
+        await db.accounts.insert_one({
+            "account_id": account_id,
+            "tier": "monthly",  # full access for the presentation
+            "day_pass_expires_at": None,
+            "subscription_status": "demo",
+            "stripe_customer_id": None,
+            "stripe_subscription_id": None,
+            "seats_allowed": 3,
+            "owner_user_id": user_id,
+            "is_demo": True,
+            "created_at": now,
+        })
+
+    # Make sure the demo account stays on monthly tier even if a
+    # previous run downgraded it.
+    await db.accounts.update_one(
+        {"account_id": account_id},
+        {"$set": {"tier": "monthly", "subscription_status": "demo"}},
+    )
+
+    session_token = uuid.uuid4().hex
+    await db.user_sessions.insert_one({
+        "session_token": session_token,
+        "user_id": user_id,
+        "expires_at": now + timedelta(days=1),  # short-lived demo session
+        "created_at": now,
+        "is_demo": True,
+    })
+
+    return {
+        "token": session_token,
+        "user": {
+            "id": user_id,
+            "email": demo_email,
+            "name": "Demo Presenter",
+            "picture": None,
+            "account_id": account_id,
+        },
+    }
+
+
 # ---------- routes: usage / quota ----------
 @api.get("/usage/me", response_model=UsageOut)
 async def usage_me(user=Depends(get_current_user)):

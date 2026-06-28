@@ -28,8 +28,9 @@ import { colors, radius, spacing } from "@/src/theme";
 // from the result (plus a deep-link listener as a fallback).
 export default function Welcome() {
   const router = useRouter();
-  const { user, exchangeSessionId } = useAuth();
+  const { user, exchangeSessionId, demoSignIn } = useAuth();
   const [busy, setBusy] = useState(false);
+  const [demoBusy, setDemoBusy] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -82,6 +83,23 @@ export default function Welcome() {
     }
   }
 
+  async function handleDemo() {
+    setError("");
+    setDemoBusy(true);
+    try {
+      await demoSignIn();
+      router.replace("/");
+    } catch (e: any) {
+      setError(
+        e?.response?.data?.detail ||
+          e?.message ||
+          "Demo mode unavailable. Please try Google sign-in.",
+      );
+    } finally {
+      setDemoBusy(false);
+    }
+  }
+
   return (
     <View style={styles.bg}>
       <KenscoffMountains />
@@ -111,7 +129,7 @@ export default function Welcome() {
           <TouchableOpacity
             style={[styles.primaryBtn, busy && styles.disabled]}
             onPress={handleSignIn}
-            disabled={busy}
+            disabled={busy || demoBusy}
             testID="login-google-btn"
             accessibilityLabel="Sign in with Google"
           >
@@ -119,6 +137,19 @@ export default function Welcome() {
               {busy ? "Opening Google…" : "Sign in with Google"}
             </Text>
           </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.demoBtn, demoBusy && styles.disabled]}
+            onPress={handleDemo}
+            disabled={busy || demoBusy}
+            testID="login-demo-btn"
+            accessibilityLabel="Continue in Demo Mode"
+          >
+            <Text style={styles.demoBtnText}>
+              {demoBusy ? "Loading demo…" : "Continue in Demo Mode →"}
+            </Text>
+          </TouchableOpacity>
+
           {error ? (
             <Text style={styles.error} testID="auth-error">
               {error}
@@ -337,6 +368,21 @@ const styles = StyleSheet.create({
   },
   disabled: { opacity: 0.7 },
   primaryBtnText: { color: "#fff", fontSize: 17, fontWeight: "600" },
+  demoBtn: {
+    backgroundColor: "transparent",
+    borderRadius: radius.pill,
+    borderWidth: 1.5,
+    borderColor: colors.brand,
+    paddingVertical: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  demoBtnText: {
+    color: colors.brand,
+    fontSize: 15,
+    fontWeight: "600",
+    letterSpacing: 0.2,
+  },
   fine: {
     color: colors.textSecondary,
     fontSize: 12,
