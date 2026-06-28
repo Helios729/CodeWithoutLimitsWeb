@@ -127,7 +127,7 @@ export default function ModuleDetail() {
               <Text style={styles.cardBody}>{s.objective}</Text>
               <View style={styles.tagRow}>
                 {s.has_framework ? <Text style={styles.tag}>Prompt template</Text> : null}
-                {s.has_build_activity ? <Text style={[styles.tag, styles.tagBuild]}>Build on your phone</Text> : null}
+                {s.has_build_activity ? <Text style={[styles.tag, styles.tagBuild]}>Build lab</Text> : null}
               </View>
             </TouchableOpacity>
           ))}

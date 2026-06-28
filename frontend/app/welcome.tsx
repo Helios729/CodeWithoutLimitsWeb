@@ -87,7 +87,20 @@ export default function Welcome() {
     setError("");
     setDemoBusy(true);
     try {
-      await demoSignIn();
+      const demoUser = await demoSignIn();
+      // For presentations: skip the Core Mission + Pilot disclaimer
+      // intros so the dashboard is one tap away. We pre-mark them as
+      // "seen" for the demo user; index.tsx then routes the user
+      // straight to /(tabs)/home with no flicker.
+      try {
+        const uid = (demoUser as any).id || demoUser.email;
+        await storage.setItem(`core_mission_seen:${uid}`, "1");
+        await storage.setItem(`mission_seen:${uid}`, "1");
+      } catch {}
+      // Route through "/" — the Index reads the seen flags we just set
+      // and redirects to the dashboard. This avoids encoding the
+      // "(tabs)" group prefix in the URL bar which can 404 on static
+      // exports / refresh.
       router.replace("/");
     } catch (e: any) {
       setError(

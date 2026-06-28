@@ -7,7 +7,12 @@ import { useAuth } from "@/src/context/AuthContext";
 import { colors } from "@/src/theme";
 
 // Entry router. Signed-out → welcome. Signed-in but mission not yet
-// acknowledged → /mission. Otherwise → main tabs.
+// acknowledged → /mission. Otherwise → main tabs. The Demo Presenter
+// account skips Core Mission + Pilot disclaimer entirely so a demo
+// click lands directly on the dashboard (no flicker, no chance of a
+// 404-looking intermediate screen for presenters).
+const DEMO_EMAIL = "demo@codewithoutlimits.app";
+
 export default function Index() {
   const { user, loading } = useAuth();
   const [seenCore, setSeenCore] = useState<boolean | null>(null);
@@ -24,6 +29,12 @@ export default function Index() {
       // so the loading spinner gives way immediately.
       setSeenCore(false);
       setSeenMission(false);
+      return;
+    }
+    // Demo Presenter — always skip the intro screens.
+    if (user.email === DEMO_EMAIL) {
+      setSeenCore(true);
+      setSeenMission(true);
       return;
     }
     const uid = (user as any).id || (user as any).user_id || user.email;

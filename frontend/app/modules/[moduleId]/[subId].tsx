@@ -166,8 +166,8 @@ export default function SubmoduleDetail() {
               <Text style={styles.codeBlockLabel}>Live preview</Text>
               <BuildPreview key={previewKey} html={previewSrc} />
               <Text style={styles.fineprint}>
-                Save this file to your phone (e.g. as <Text style={styles.mono}>app.html</Text>)
-                and open it in your browser — it runs offline with no server.
+                Save this file (e.g. as <Text style={styles.mono}>app.html</Text>)
+                and open it in any browser — it runs offline with no server.
               </Text>
             </View>
           ) : null}

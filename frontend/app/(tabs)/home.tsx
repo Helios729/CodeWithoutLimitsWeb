@@ -186,7 +186,7 @@ export default function Home() {
         <Text style={styles.sectionTitle}>Learning modules</Text>
         <Text style={styles.sectionSub}>
           Four modules · {modules.reduce((a, m) => a + m.submodule_count, 0)} sub-modules total,
-          including prompt-engineering frameworks and a phone-based mobile coding lab.
+          including prompt-engineering frameworks and a built-in coding lab.
         </Text>
         {modules.map((m) => (
           <TouchableOpacity
