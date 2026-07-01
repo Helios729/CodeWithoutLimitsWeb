@@ -15,6 +15,7 @@ them correctly. _id is always excluded from MongoDB responses.
 """
 
 import json
+import asyncio
 import logging
 import os
 import re
@@ -63,6 +64,7 @@ from quota import (
 )
 from scraper import preseed_all, scrape_topic
 from sources import TOPIC_CATALOG, get_topic
+from survey_relay import relay_to_google_form
 
 
 # ---------- bootstrap ----------
@@ -1040,7 +1042,9 @@ async def submodule_detail(module_id: str, sub_id: str):
 @api.post("/surveys/submit")
 async def submit_survey(body: SurveyIn, user=Depends(get_current_user)):
     """Persist one survey response. Idempotent on (user_id, module_id) —
-    a re-submission overwrites so we never double-count."""
+    a re-submission overwrites so we never double-count. Also mirrors
+    the response into the master Google Form (fire-and-forget) so the
+    feedback lands in Google Sheets in real time."""
     now = datetime.now(timezone.utc)
     doc = {
         "user_id": user["user_id"],
@@ -1062,6 +1066,8 @@ async def submit_survey(body: SurveyIn, user=Depends(get_current_user)):
         {"$set": doc},
         upsert=True,
     )
+    # Mirror to Google Forms / Sheets without blocking the response.
+    asyncio.create_task(relay_to_google_form(user=user, doc=doc))
     return {"ok": True}
 
 
@@ -1563,7 +1569,6 @@ async def on_startup():
     # External HTTPS calls during startup also risk tripping readiness
     # probes if egress is rate-limited. Set ENABLE_PRESEED=true to re-enable.
     if os.environ.get("ENABLE_PRESEED", "").lower() in ("1", "true", "yes"):
-        import asyncio
         asyncio.create_task(preseed_all(db))
         logger.info("Pre-seed task scheduled (ENABLE_PRESEED is on)")
     logger.info("Code Without Limits API ready")

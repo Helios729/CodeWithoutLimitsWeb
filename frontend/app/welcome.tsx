@@ -20,7 +20,6 @@ import Svg, {
 } from "react-native-svg";
 
 import { useAuth } from "@/src/context/AuthContext";
-import ExpoGoBanner from "@/src/components/ExpoGoBanner";
 import { colors, radius, spacing } from "@/src/theme";
 
 // Emergent-managed Google auth flow. On web we navigate the whole tab;
@@ -138,7 +137,6 @@ export default function Welcome() {
         </View>
 
         <View style={styles.actions}>
-          <ExpoGoBanner />
           <TouchableOpacity
             style={[styles.primaryBtn, busy && styles.disabled]}
             onPress={handleSignIn}
